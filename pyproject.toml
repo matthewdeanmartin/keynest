@@ -32,6 +32,7 @@ issues = "https://github.com/matthewdeanmartin/keynest/issues/"
 
 [project.scripts]
 keynest = "keynest.cli:main"
+keynest-gui = "keynest.app:main"
 
 [build-system]
 requires = ["hatchling>=1.27.0"]
@@ -148,6 +149,21 @@ packages = ["keynest", "tests"]
 module = "tests.*"
 disallow_untyped_defs = false
 disallow_untyped_calls = false
+disallow_incomplete_defs = false
+disallow_any_generics = false
+
+# boto3/botocore ship no type stubs; treat them as untyped third-party modules.
+[[tool.mypy.overrides]]
+module = ["boto3", "boto3.*", "botocore", "botocore.*"]
+ignore_missing_imports = true
+
+# The Tkinter UI layer is thin glue against imperfect stdlib tk stubs
+# (e.g. Listbox.curselection is untyped, Toplevel.transient overloads are
+# narrow). Relax the strict checks that only those stub gaps trip.
+[[tool.mypy.overrides]]
+module = "keynest.ui.*"
+disallow_untyped_calls = false
+warn_return_any = false
 
 [tool.ruff]
 line-length = 120
