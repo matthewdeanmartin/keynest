@@ -1,0 +1,26 @@
+# Add project-specific words here, one per line.
+# These words will be ignored by codespell and pylint spelling checks.
+keynest
+keyring
+boto3
+devsecrets
+secretsmanager
+tkinter
+dotenv
+pgadmin
+keepassxc
+doppler
+infisical
+bitwarden
+sops
+pipx
+arn
+iam
+uuid
+CLI
+GUI
+keystore
+metametameta
+subcommands
+
+
