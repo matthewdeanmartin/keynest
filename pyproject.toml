@@ -52,6 +52,7 @@ include = ["/README.md", "LICENSE", "/keynest", "/tests"]
 
 [dependency-groups]
 dev = [
+    "keepachangelog-manager-fork[all]>=6.5.0",
     "bandit>=1.9.4",
     "black>=26.0.0",
     "isort>=6.0.0",
