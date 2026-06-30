@@ -5,23 +5,23 @@
 ```bash
 git clone https://github.com/matthewdeanmartin/keynest.git
 cd keynest
-uv sync
+uv sync --all-extras
 ```
 
 ## Running checks
 
 ```bash
-make check
+uv run make check
 ```
 
 ## Running tests only
 
 ```bash
-make test
+uv run make test
 ```
 
 ## Before submitting a PR
 
 ```bash
-make prerelease
+uv run make prerelease
 ```

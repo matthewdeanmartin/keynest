@@ -63,3 +63,46 @@ MIT — see [LICENSE](LICENSE).
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md).
+
+## Current implementation
+
+The implementation has moved beyond the early scaffold note above: both the CLI and Tkinter GUI are available, with
+OS-keyring and AWS Secrets Manager backends. The specification remains useful as product history, while the
+[user documentation](docs/index.md) describes the behavior and limitations of the current code.
+
+The preferred installation is an isolated global tool environment:
+
+```bash
+uv tool install keynest
+```
+
+or:
+
+```bash
+pipx install keynest
+```
+
+The install provides `keynest` and `keynest-gui`. Start with:
+
+```bash
+keynest health
+keynest --help
+keynest-gui
+```
+
+The recommended usage path injects a map only into a child process:
+
+```bash
+keynest run my-app/dev -- python app.py
+```
+
+See the [documentation home](docs/index.md), [concepts and storage](docs/concepts.md), dedicated
+[CLI reference](docs/usage/cli.md), [GUI guide](docs/usage/gui.md), [AWS guide](docs/aws.md), and
+[security model](docs/security.md).
+
+On Windows, keynest does not enumerate Credential Manager. It uses Python `keyring` to request exact entries under
+its own `DeveloperSecretWorkbench` service and keeps a separate non-secret index for listing. Windows itself has a
+credential-enumeration API, but keynest does not call it; this is an implementation boundary, not protection from
+other software running as your user. Consequently, unrelated credentials stored by other applications do not appear
+in keynest. The [storage documentation](docs/concepts.md#why-keynest-cannot-see-your-other-windows-credentials) has the
+full explanation.

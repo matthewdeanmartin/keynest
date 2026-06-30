@@ -123,3 +123,113 @@ def test_aws_setup_failed_step_returns_1(capsys, monkeypatch):
     monkeypatch.setattr(wiz, "AwsSetupWizard", FakeWizard)
     assert main(["aws-setup", "--yes"]) == 1
     assert "FAIL" in capsys.readouterr().out
+
+
+# -- Phase 5 commands --------------------------------------------------------
+
+
+def test_diff(capsys):
+    main(["set", "app/dev", "A", "1"])
+    main(["set", "app/dev", "B", "2"])
+    main(["set", "app/prod", "B", "9"])
+    main(["set", "app/prod", "C", "3"])
+    capsys.readouterr()
+    assert main(["diff", "app/dev", "app/prod"]) == 0
+    out = capsys.readouterr().out
+    assert "- A" in out and "+ C" in out and "~ B" in out
+
+
+def test_lint_returns_1_on_findings(capsys):
+    main(["set", "app/dev", "bad-key", "v"])
+    capsys.readouterr()
+    assert main(["lint", "app/dev"]) == 1
+    assert "bad-key" in capsys.readouterr().out
+
+
+def test_lint_clean(capsys):
+    main(["set", "app/dev", "GOOD_KEY", "v"])
+    capsys.readouterr()
+    assert main(["lint", "app/dev"]) == 0
+    assert "clean" in capsys.readouterr().out
+
+
+def test_redact_export_hides_value(capsys):
+    main(["set", "app/dev", "PASSWORD", "hunter2"])
+    capsys.readouterr()
+    assert main(["redact-export", "app/dev"]) == 0
+    out = capsys.readouterr().out
+    assert "hunter2" not in out and "REDACTED" in out
+
+
+def test_duplicate(capsys):
+    main(["set", "app/dev", "A", "1"])
+    capsys.readouterr()
+    assert main(["duplicate", "app/dev", "copy"]) == 0
+    capsys.readouterr()
+    assert main(["get", "app/copy", "A"]) == 0
+    assert capsys.readouterr().out.strip() == "1"
+
+
+def test_stale_lists_zero_day(capsys):
+    main(["set", "app/dev", "A", "1"])
+    capsys.readouterr()
+    assert main(["stale", "--days", "0"]) == 0
+    assert "/app/dev" in capsys.readouterr().out
+
+
+def test_recent_after_get(capsys):
+    main(["set", "app/dev", "A", "1"])
+    main(["get", "app/dev", "A"])
+    capsys.readouterr()
+    assert main(["recent"]) == 0
+    out = capsys.readouterr().out
+    assert "get" in out and "/app/dev" in out
+
+
+def test_diagnostics_runs(capsys):
+    assert main(["diagnostics"]) == 0
+    assert "keyring backend" in capsys.readouterr().out
+
+
+def test_backup_index(capsys):
+    main(["set", "app/dev", "A", "1"])
+    capsys.readouterr()
+    assert main(["backup-index"]) == 0
+    assert "Backed up index" in capsys.readouterr().out
+
+
+# -- dry-run -----------------------------------------------------------------
+
+
+def test_set_dry_run_does_not_persist(capsys):
+    assert main(["set", "app/dev", "A", "1", "--dry-run"]) == 0
+    assert "[dry-run]" in capsys.readouterr().out
+    # Nothing was written, so the map should not exist.
+    assert main(["get", "app/dev", "A"]) == 2
+
+
+def test_run_dry_run_does_not_execute(capsys):
+    main(["set", "app/dev", "A", "1"])
+    capsys.readouterr()
+    rc = main(["run", "app/dev", "--dry-run", "--", "definitely-not-a-real-binary-xyz"])
+    assert rc == 0
+    assert "[dry-run]" in capsys.readouterr().out
+
+
+def test_export_dry_run_writes_nothing(tmp_path, capsys):
+    main(["set", "app/dev", "A", "1"])
+    dest = tmp_path / "out.env"
+    capsys.readouterr()
+    rc = main(["export-env", "app/dev", str(dest), "--i-understand-this-is-less-safe", "--dry-run"])
+    assert rc == 0
+    assert not dest.exists()
+    assert "[dry-run]" in capsys.readouterr().out
+
+
+def test_import_dry_run_does_not_persist(tmp_path, capsys):
+    env = tmp_path / ".env"
+    env.write_text("A=1\n")
+    capsys.readouterr()
+    assert main(["import-env", "app/dev", str(env), "--dry-run"]) == 0
+    assert "[dry-run]" in capsys.readouterr().out
+    assert main(["get", "app/dev", "A"]) == 2

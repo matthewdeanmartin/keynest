@@ -48,6 +48,17 @@ def _get_backend(args: argparse.Namespace) -> SecretBackend:
     )
 
 
+def _is_dry_run(args: argparse.Namespace) -> bool:
+    """Return ``True`` if ``--dry-run`` was requested for this invocation."""
+    return bool(getattr(args, "dry_run", False))
+
+
+def _announce_dry_run(message: str) -> int:
+    """Print a ``[dry-run]`` notice describing a skipped side effect; return 0."""
+    print(f"[dry-run] {message}")
+    return 0
+
+
 # -- command implementations -------------------------------------------------
 
 
@@ -71,7 +82,8 @@ def cmd_get(args: argparse.Namespace) -> int:
     if args.key not in secret_map.values:
         print(f"Key not found: {args.key}", file=sys.stderr)
         return 2
-    AuditLog().record(AuditEvent(action="get", backend=secret_map.backend, folder=folder, name=name, key=args.key))
+    if not _is_dry_run(args):
+        AuditLog().record(AuditEvent(action="get", backend=secret_map.backend, folder=folder, name=name, key=args.key))
     value = secret_map.values[args.key]
     print(value if value is not None else "")
     return 0
@@ -89,6 +101,8 @@ def cmd_set(args: argparse.Namespace) -> int:
     if warning:
         print(f"Warning: {warning}", file=sys.stderr)
     secret_map.values[args.key] = args.value
+    if _is_dry_run(args):
+        return _announce_dry_run(f"would set {args.key} in {secret_map.path} ({len(secret_map.values)} key(s))")
     backend.put_secret_map(secret_map)
     print(f"Set {args.key} in {secret_map.path}")
     return 0
@@ -102,6 +116,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     if not args.command:
         print("No command given after '--'.", file=sys.stderr)
         return 2
+    if _is_dry_run(args):
+        keys = ", ".join(secret_map.keys) or "(none)"
+        return _announce_dry_run(
+            f"would run {' '.join(args.command)} with {len(secret_map.values)} injected var(s): {keys}"
+        )
     AuditLog().record(AuditEvent(action="run", backend=secret_map.backend, folder=folder, name=name))
     return run_with_secrets(secret_map, list(args.command))
 
@@ -137,6 +156,9 @@ def cmd_import_env(args: argparse.Namespace) -> int:
     except SecretMapNotFound:
         secret_map = SecretMap(backend=_backend_id(args), folder=folder, name=name)
     secret_map.values.update(result.values)
+    if _is_dry_run(args):
+        keys = ", ".join(sorted(result.values)) or "(none)"
+        return _announce_dry_run(f"would import {len(result.values)} key(s) into {secret_map.path}: {keys}")
     backend.put_secret_map(secret_map)
     print(f"Imported {len(result.values)} key(s) into {secret_map.path}")
     return 0
@@ -155,6 +177,8 @@ def cmd_export_env(args: argparse.Namespace) -> int:
     folder, name = parse_path(args.path)
     backend = _get_backend(args)
     secret_map = backend.get_secret_map(folder, name)
+    if _is_dry_run(args):
+        return _announce_dry_run(f"would write {len(secret_map.values)} key(s) to {args.file} (plaintext)")
     with open(args.file, "w", encoding="utf-8") as handle:
         handle.write(serialize_dotenv(secret_map.values))
     AuditLog().record(AuditEvent(action="export-env", backend=secret_map.backend, folder=folder, name=name))
@@ -228,6 +252,120 @@ def cmd_aws_setup(args: argparse.Namespace) -> int:
     return rc
 
 
+def cmd_diff(args: argparse.Namespace) -> int:
+    """Show the key-level diff between two secret maps."""
+    from keynest.services import maptools  # pylint: disable=import-outside-toplevel
+
+    backend = _get_backend(args)
+    left = backend.get_secret_map(*parse_path(args.left))
+    right = backend.get_secret_map(*parse_path(args.right))
+    diff = maptools.diff_maps(left, right)
+    print(f"{left.path} -> {right.path}")
+    for key in diff.added:
+        print(f"  + {key}")
+    for key in diff.removed:
+        print(f"  - {key}")
+    for key in diff.changed:
+        print(f"  ~ {key}")
+    if not diff.has_changes:
+        print("  (identical keys and values)")
+    return 0
+
+
+def cmd_lint(args: argparse.Namespace) -> int:
+    """Lint a secret map's key names and value hygiene."""
+    from keynest.services import maptools  # pylint: disable=import-outside-toplevel
+
+    backend = _get_backend(args)
+    secret_map = backend.get_secret_map(*parse_path(args.path))
+    findings = maptools.lint_map(secret_map)
+    if not findings:
+        print(f"{secret_map.path}: clean")
+        return 0
+    for finding in findings:
+        print(f"{secret_map.path}: {finding.key}: {finding.message}")
+    return 1
+
+
+def cmd_stale(args: argparse.Namespace) -> int:
+    """List secret maps not updated within the staleness window."""
+    from keynest.services import maptools  # pylint: disable=import-outside-toplevel
+    from keynest.services.index_store import IndexStore  # pylint: disable=import-outside-toplevel
+
+    index = IndexStore()
+    stale_any = False
+    for item in sorted(index.items(), key=lambda i: (i.folder, i.name)):
+        if maptools.is_stale(item.updated_at, stale_days=args.days):
+            stale_any = True
+            age = maptools.age_in_days(item.updated_at)
+            age_text = f"{age:.0f}d" if age is not None else "unknown"
+            print(f"/{item.folder}/{item.name}  (age: {age_text}, updated: {item.updated_at or 'never'})")
+    if not stale_any:
+        print(f"No maps older than {args.days} days.")
+    return 0
+
+
+def cmd_redact_export(args: argparse.Namespace) -> int:
+    """Print a redacted JSON view of a secret map (safe to share)."""
+    from keynest.services import maptools  # pylint: disable=import-outside-toplevel
+
+    backend = _get_backend(args)
+    secret_map = backend.get_secret_map(*parse_path(args.path))
+    print(maptools.export_redacted_json(secret_map))
+    return 0
+
+
+def cmd_duplicate(args: argparse.Namespace) -> int:
+    """Duplicate a secret map under a new name (and optional folder)."""
+    from keynest.services import maptools  # pylint: disable=import-outside-toplevel
+
+    backend = _get_backend(args)
+    source = backend.get_secret_map(*parse_path(args.path))
+    copy = maptools.duplicate_map(source, args.new_name, new_folder=args.folder)
+    if _is_dry_run(args):
+        return _announce_dry_run(f"would duplicate {source.path} to {copy.path} ({len(copy.values)} key(s))")
+    backend.put_secret_map(copy)
+    print(f"Duplicated {source.path} to {copy.path}")
+    return 0
+
+
+def cmd_recent(args: argparse.Namespace) -> int:
+    """Show recent (non-secret) usage events from the audit log."""
+    events = AuditLog().events(limit=args.limit)
+    if not events:
+        print("(no audit events)")
+        return 0
+    for event in events:
+        key = f" {event.key}" if event.key else ""
+        print(f"{event.timestamp}  {event.action:<12} /{event.folder}/{event.name}{key}  [{event.backend}]")
+    return 0
+
+
+def cmd_diagnostics(args: argparse.Namespace) -> int:
+    """Print environment and store diagnostics (keyring backend, paths, health)."""
+    from keynest.services import diagnostics  # pylint: disable=import-outside-toplevel
+
+    _ = args
+    for line in diagnostics.collect().as_lines():
+        print(line)
+    return 0
+
+
+def cmd_backup_index(args: argparse.Namespace) -> int:
+    """Back up the non-secret local index to a timestamped file."""
+    from keynest.services.index_store import IndexStore  # pylint: disable=import-outside-toplevel
+
+    index = IndexStore()
+    if _is_dry_run(args):
+        return _announce_dry_run(f"would back up index at {index.path}")
+    destination = index.backup()
+    if destination is None:
+        print("No index file to back up.")
+        return 0
+    print(f"Backed up index to {destination}")
+    return 0
+
+
 # -- parser ------------------------------------------------------------------
 
 
@@ -246,6 +384,11 @@ def build_parser() -> argparse.ArgumentParser:
     common.add_argument("--aws", action="store_true", help="Use the AWS Secrets Manager backend.")
     common.add_argument("--profile", help="AWS profile name (AWS backend).")
     common.add_argument("--region", help="AWS region (AWS backend).")
+    common.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Describe side effects without performing them (for smoke tests).",
+    )
 
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -303,17 +446,61 @@ def build_parser() -> argparse.ArgumentParser:
     p_setup.add_argument("--allow-delete", action="store_true", help="Include delete/restore actions in the policy.")
     p_setup.set_defaults(func=cmd_aws_setup)
 
+    p_diff = sub.add_parser("diff", parents=[common], help="Diff two secret maps (keys only).")
+    p_diff.add_argument("left", help="Baseline folder/name path.")
+    p_diff.add_argument("right", help="Comparison folder/name path.")
+    p_diff.set_defaults(func=cmd_diff)
+
+    p_lint = sub.add_parser("lint", parents=[common], help="Lint key names and value hygiene.")
+    p_lint.add_argument("path", help="folder/name path.")
+    p_lint.set_defaults(func=cmd_lint)
+
+    p_stale = sub.add_parser("stale", parents=[common], help="List stale (old) secret maps.")
+    p_stale.add_argument("--days", type=int, default=90, help="Staleness threshold in days (default 90).")
+    p_stale.set_defaults(func=cmd_stale)
+
+    p_red = sub.add_parser("redact-export", parents=[common], help="Print a redacted JSON view.")
+    p_red.add_argument("path", help="folder/name path.")
+    p_red.set_defaults(func=cmd_redact_export)
+
+    p_dup = sub.add_parser("duplicate", parents=[common], help="Duplicate a secret map.")
+    p_dup.add_argument("path", help="Source folder/name path.")
+    p_dup.add_argument("new_name", help="Name for the duplicate.")
+    p_dup.add_argument("--folder", help="Destination folder (default: same as source).")
+    p_dup.set_defaults(func=cmd_duplicate)
+
+    p_recent = sub.add_parser("recent", parents=[common], help="Show recent usage audit events.")
+    p_recent.add_argument("--limit", type=int, default=20, help="Max events to show (default 20).")
+    p_recent.set_defaults(func=cmd_recent)
+
+    p_diag = sub.add_parser("diagnostics", parents=[common], help="Show environment diagnostics.")
+    p_diag.set_defaults(func=cmd_diagnostics)
+
+    p_backup = sub.add_parser("backup-index", parents=[common], help="Back up the local non-secret index.")
+    p_backup.set_defaults(func=cmd_backup_index)
+
     return parser
 
 
-def _strip_run_separator(argv: Sequence[str]) -> list[str]:
-    """Drop the literal ``--`` separator that precedes a ``run`` command.
+def _normalize_run_argv(argv: Sequence[str]) -> list[str]:
+    """Prepare argv for the ``run`` subcommand.
 
-    argparse's REMAINDER keeps the leading ``--``; strip the first one so the
-    resulting command list is clean.
+    Two adjustments are needed because ``run`` collects its command via
+    ``argparse.REMAINDER``, which greedily swallows everything after the path:
+
+    1. Move a ``--dry-run`` flag that appears after ``run`` to just before the
+       path, so argparse parses it as the option (not part of the command).
+    2. Drop the first literal ``--`` separator so the command list is clean.
     """
     args = list(argv)
-    if "run" in args and "--" in args:
+    if "run" not in args:
+        return args
+    run_idx = args.index("run")
+    # Pull --dry-run out of wherever it landed and reinsert right after "run".
+    if "--dry-run" in args[run_idx + 1 :]:
+        args.remove("--dry-run")
+        args.insert(run_idx + 1, "--dry-run")
+    if "--" in args:
         args.remove("--")
     return args
 
@@ -322,7 +509,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the keynest CLI and return a process exit code."""
     raw = list(sys.argv[1:] if argv is None else argv)
     parser = build_parser()
-    args = parser.parse_args(_strip_run_separator(raw))
+    args = parser.parse_args(_normalize_run_argv(raw))
     try:
         return int(args.func(args))
     except SecretMapNotFound as exc:

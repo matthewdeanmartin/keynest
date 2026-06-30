@@ -10,3 +10,8 @@ ones (exporting plaintext `.env` files, pasting into shell history).
 
 See the [spec](https://github.com/matthewdeanmartin/keynest/blob/main/spec/spec.md) for the
 full product specification and MVP phases.
+
+The implementation now includes both interfaces and both storage backends. Start with the
+[documentation home](../index.md), then see [concepts and storage](../concepts.md) for the implemented data model and
+its current limitations. The specification records product intent; the user documentation and current code describe
+actual behavior.

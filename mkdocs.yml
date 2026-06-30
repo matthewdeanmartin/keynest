@@ -15,13 +15,19 @@ markdown_extensions:
   - toc:
       permalink: true
 nav:
+  - Home: index.md
   - Overview:
-      - Readme.md: overview/README.md
+      - Project overview: overview/README.md
+      - Concepts and storage: concepts.md
+      - Security model: security.md
   - Installation: installation.md
   - Usage:
       - Quick Start: usage/quickstart.md
+      - CLI reference: usage/cli.md
+      - Desktop GUI: usage/gui.md
+  - AWS Secrets Manager: aws.md
   - Contributing: extending/CONTRIBUTING.md
-  - Change Log: CHANGELOG.md
+  - Change Log: https://github.com/matthewdeanmartin/keynest/blob/main/CHANGELOG.md
 validation:
   nav:
     omitted_files: warn

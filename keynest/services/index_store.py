@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 
 from keynest.model import SecretMap, SecretMapRef, normalize_folder, now_iso
@@ -88,6 +89,25 @@ class IndexStore:
         tmp = self.path.with_suffix(self.path.suffix + ".tmp")
         tmp.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
         tmp.replace(self.path)
+
+    def backup(self, destination: Path | None = None) -> Path | None:
+        """Copy the (non-secret) index file to a timestamped backup.
+
+        Args:
+            destination: Explicit backup path; otherwise a sibling file named
+                ``index-<UTC-timestamp>.json.bak`` next to the index.
+
+        Returns:
+            The backup path, or ``None`` if there is no index file to back up.
+        """
+        if not self.path.exists():
+            return None
+        if destination is None:
+            stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+            destination = self.path.with_name(f"index-{stamp}.json.bak")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(self.path.read_bytes())
+        return destination
 
     # -- queries -------------------------------------------------------------
 
