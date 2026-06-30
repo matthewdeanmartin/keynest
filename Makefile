@@ -207,11 +207,16 @@ security: bandit audit
 bandit:
 	@$(UV) run bandit -q -c pyproject.toml -r $(PACKAGE)
 
+# Advisories accepted with no available fix. Revisit when upstream ships a patch.
+#   GHSA-p4gq-832x-fm9v: nltk path traversal in nltk.data.load(); pulled in transitively
+#     via pydoclint->textstat (dev-only, not a runtime dependency). No fixed release.
+AUDIT_IGNORE = GHSA-p4gq-832x-fm9v
+
 audit:
 	@echo "=== uv audit ==="
-	@$(UV) audit
+	@$(UV) audit $(foreach id,$(AUDIT_IGNORE),--ignore-until-fixed $(id))
 	@echo "=== pip-audit ==="
-	@$(UV) run pip-audit
+	@$(UV) run pip-audit $(foreach id,$(AUDIT_IGNORE),--ignore-vuln $(id))
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
