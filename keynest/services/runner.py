@@ -7,7 +7,9 @@ process environment only, never written to disk or printed.
 from __future__ import annotations
 
 import os
-import subprocess  # nosec B404 - launching the user's chosen command is the feature
+
+# launching the user's chosen command is the feature
+import subprocess  # nosec B404
 
 from keynest.model import SecretMap
 
@@ -53,5 +55,6 @@ def run_with_secrets(
     if not command:
         raise ValueError("No command given to run.")
     env = build_environment(secret_map, base_env)
-    completed = subprocess.run(command, env=env, check=False)  # nosec B603 - intentional user command
+    # intentional user command, nosec
+    completed = subprocess.run(command, env=env, check=False)  # nosec B603
     return completed.returncode

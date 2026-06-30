@@ -54,3 +54,28 @@ def devsecrets_home(tmp_path, monkeypatch) -> str:
     home = tmp_path / "devsecrets"
     monkeypatch.setenv("DEVSECRETS_HOME", str(home))
     return str(home)
+
+
+@pytest.fixture
+def tk_root() -> Iterator[object]:
+    """Provide a hidden Tk root window, skipping the test if no display exists.
+
+    The widget tests are light integration tests: they build real Tk widgets on
+    this root and drive them through their public APIs. Pending ``after`` jobs
+    are flushed and the root destroyed on teardown.
+    """
+    import tkinter as tk
+
+    try:
+        root = tk.Tk()
+    except tk.TclError as exc:  # pragma: no cover - headless CI without a display
+        pytest.skip(f"no Tk display available: {exc}")
+    root.withdraw()
+    try:
+        yield root
+    finally:
+        try:
+            root.update_idletasks()
+            root.destroy()
+        except tk.TclError:  # pragma: no cover - already torn down
+            pass

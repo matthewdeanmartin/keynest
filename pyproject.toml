@@ -151,6 +151,9 @@ disallow_untyped_defs = false
 disallow_untyped_calls = false
 disallow_incomplete_defs = false
 disallow_any_generics = false
+# Tk widget introspection (winfo_children -> Widget) and ad-hoc event-collector
+# lists in the GUI tests trip these without adding any real safety.
+disable_error_code = ["union-attr", "var-annotated"]
 
 # boto3/botocore ship no type stubs; treat them as untyped third-party modules.
 [[tool.mypy.overrides]]
