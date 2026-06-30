@@ -1,6 +1,6 @@
 [project]
 name = "keynest"
-version = "0.1.0"
+version = "0.0.1"
 description = "Developer secret workbench: a pure-Python keystore with GUI and CLI for OS keyring and AWS Secrets Manager"
 readme = "README.md"
 authors = [{ name = "Matthew Martin", email = "matthewdeanmartin@gmail.com" }]
