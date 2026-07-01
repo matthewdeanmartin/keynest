@@ -623,7 +623,7 @@ class MainWindow(tk.Tk):
     def _open_credential_manager(self) -> None:
         """Open the Windows Credential Manager UI (Windows only)."""
         try:
-            subprocess.Popen(["rundll32.exe", "keymgr.dll,KRShowKeyMgr"])  # noqa: S603,S607
+            subprocess.Popen(["rundll32.exe", "keymgr.dll,KRShowKeyMgr"])
         except OSError as exc:
             messagebox.showerror("Credential Manager", f"Could not open Credential Manager:\n{exc}")
 

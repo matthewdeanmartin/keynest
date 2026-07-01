@@ -265,7 +265,7 @@ def test_read_pyproject_marker_absent_file_returns_none(tmp_path):
 
 
 def test_read_pyproject_marker_no_tool_section_returns_none(tmp_path):
-    (tmp_path / "pyproject.toml").write_text('[build-system]\nrequires = []\n', encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text("[build-system]\nrequires = []\n", encoding="utf-8")
     assert rc.read_pyproject_marker(tmp_path) is None
 
 
@@ -287,9 +287,7 @@ def test_read_pyproject_marker_folder_only(tmp_path):
 
 
 def test_read_pyproject_marker_unknown_key_raises(tmp_path):
-    (tmp_path / "pyproject.toml").write_text(
-        '[tool.keynest]\nfolder = "x"\nsecret = "oops"\n', encoding="utf-8"
-    )
+    (tmp_path / "pyproject.toml").write_text('[tool.keynest]\nfolder = "x"\nsecret = "oops"\n', encoding="utf-8")
     with pytest.raises(rc.MarkerError):
         rc.read_pyproject_marker(tmp_path)
 
@@ -319,7 +317,7 @@ def test_detect_keynest_used_when_no_pyproject_section(tmp_path):
     repo.mkdir()
     _make_repo(repo, remote="git@github.com:acme/acme-api.git")
     (repo / ".keynest").write_text('folder = "from-dot-keynest"\n', encoding="utf-8")
-    (repo / "pyproject.toml").write_text('[build-system]\nrequires = []\n', encoding="utf-8")
+    (repo / "pyproject.toml").write_text("[build-system]\nrequires = []\n", encoding="utf-8")
     ctx = rc.detect(repo)
     assert ctx is not None
     assert ctx.source == "marker"

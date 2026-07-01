@@ -6,13 +6,14 @@ readme = "README.md"
 authors = [{ name = "Matthew Martin", email = "matthewdeanmartin@gmail.com" }]
 keywords = ["secrets", "keyring", "aws", "secrets-manager", "credentials", "vault", "developer-tools", "cli", "gui", "tkinter"]
 license = "MIT"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -21,6 +22,7 @@ classifiers = [
 dependencies = [
     "keyring>=24.0.0",
     "boto3>=1.34.0",
+    "tomli>=2.0.0; python_version < '3.11'",
 ]
 
 [project.urls]
@@ -52,16 +54,16 @@ include = ["/README.md", "LICENSE", "/keynest", "/tests"]
 
 [dependency-groups]
 dev = [
-    "keepachangelog-manager-fork[all]>=6.5.0",
-    "bandit>=1.9.4",
-    "black>=26.0.0",
+    "keepachangelog-manager-fork[all]>=6.5.0; python_version < '3.15'",
+    "bandit>=1.9.4; python_version >= '3.10'",
+    "black>=26.0.0; python_version >= '3.10'",
     "isort>=6.0.0",
     "jiggle-version>=2.1.0",
     "codespell>=2.4.1",
-    "mdformat>=1.0.0",
+    "mdformat>=1.0.0; python_version >= '3.10'",
     "metametameta>=0.1.5",
     "mypy>=1.18.0",
-    "pylint[spelling]>=4.0.0",
+    "pylint[spelling]>=4.0.0; python_version >= '3.10'",
     "pytest>=8.4.0",
     "pytest-cov>=6.0.0",
     "pytest-xdist>=3.5.0",
@@ -84,17 +86,17 @@ dev = [
     "pyenchant>=3.2.2",
     "mkdocs>=1.6.0",
     "mkdocstrings[python]>=0.26.0",
-    "git2md>=0.1.0",
+    "git2md>=0.1.0; python_version >= '3.10'",
     "pyclean>=3.0.0",
     # dead code analysis (advisory)
     "vulture>=2.11",
-    "deadcode>=2.4.0",
+    "deadcode>=2.4.0; python_version >= '3.10'",
     # API surface / doc checks
     "griffe>=1.0.0",
-    "pydoclint>=0.8.0",
+    "pydoclint>=0.8.0; python_version >= '3.10'",
     "pydoctest==0.2.1",
     # advisory / exploratory tools (standalone make targets, not quality gates)
-    "refurb>=2.0.0",
+    "refurb>=2.0.0; python_version >= '3.10'",
     "crosshair-tool>=0.0.80",
     "deptry>=0.20.0",
     "import-linter>=2.0",

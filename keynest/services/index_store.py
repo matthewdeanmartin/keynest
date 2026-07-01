@@ -11,7 +11,9 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+
+UTC = timezone.utc
 from pathlib import Path
 
 from keynest.model import SecretMap, SecretMapRef, normalize_folder, now_iso

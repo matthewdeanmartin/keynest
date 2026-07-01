@@ -3,7 +3,8 @@
 Why? Because you're going to leak your .env files to git someday.
 
 keynest is a local-first secret workbench for individual developers. It keeps named maps (json files) of configuration
-in your operating system's credential store or AWS Secrets Manager and makes the safest common operation the shortest one:
+in your operating system's credential store or AWS Secrets Manager and makes the safest common operation the shortest
+one:
 
 ```console
 keynest run dev -- python app.py
