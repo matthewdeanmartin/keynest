@@ -18,7 +18,8 @@ repository.
 
 keynest walks from the current directory to the nearest `.git` directory or worktree pointer, then applies this order:
 
-1. Use the `folder` in a valid `.keynest` marker at the repository root.
+1. Use the `folder` in a valid `[tool.keynest]` section of `pyproject.toml` at the repository root.
+1. Otherwise use the `folder` in a valid `.keynest` marker at the repository root.
 1. Otherwise, read the preferred remote from `.git/config` (`origin`, or the first remote) and derive `owner.repo`.
    GitLab-style subgroups are flattened with dots.
 1. If no usable remote exists, use the working-tree directory name.
@@ -29,6 +30,22 @@ behavior.
 
 An explicit path such as `default/dev` or `another-project/dev` always wins. Outside a repository, a bare `dev`
 continues to mean `/default/dev`.
+
+## The `pyproject.toml` integration
+
+If your project already has a `pyproject.toml`, you can place the keynest configuration there instead of
+creating a separate `.keynest` file. Add a `[tool.keynest]` section:
+
+```toml
+[tool.keynest]
+folder = "acme.payments"
+default_map = "dev"       # optional
+```
+
+The same secret-free schema applies: only `folder` and optional `default_map` are accepted. An unknown key
+causes the section to be ignored and detection falls through to the next source.
+
+When both `pyproject.toml` and `.keynest` are present, `[tool.keynest]` in `pyproject.toml` wins.
 
 ## The `.keynest` marker
 

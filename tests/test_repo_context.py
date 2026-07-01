@@ -255,3 +255,85 @@ def test_detect_malformed_marker_falls_through_to_remote(tmp_path):
     assert ctx is not None
     assert ctx.source == "remote"
     assert ctx.default_folder == "acme.acme-api"
+
+
+# -- pyproject.toml [tool.keynest] marker (R5) -------------------------------- #
+
+
+def test_read_pyproject_marker_absent_file_returns_none(tmp_path):
+    assert rc.read_pyproject_marker(tmp_path) is None
+
+
+def test_read_pyproject_marker_no_tool_section_returns_none(tmp_path):
+    (tmp_path / "pyproject.toml").write_text('[build-system]\nrequires = []\n', encoding="utf-8")
+    assert rc.read_pyproject_marker(tmp_path) is None
+
+
+def test_read_pyproject_marker_no_keynest_subsection_returns_none(tmp_path):
+    (tmp_path / "pyproject.toml").write_text('[tool.other]\nkey = "value"\n', encoding="utf-8")
+    assert rc.read_pyproject_marker(tmp_path) is None
+
+
+def test_read_pyproject_marker_valid(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.keynest]\nfolder = "team.proj"\ndefault_map = "dev"\n', encoding="utf-8"
+    )
+    assert rc.read_pyproject_marker(tmp_path) == ("team.proj", "dev")
+
+
+def test_read_pyproject_marker_folder_only(tmp_path):
+    (tmp_path / "pyproject.toml").write_text('[tool.keynest]\nfolder = "myorg.myrepo"\n', encoding="utf-8")
+    assert rc.read_pyproject_marker(tmp_path) == ("myorg.myrepo", None)
+
+
+def test_read_pyproject_marker_unknown_key_raises(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.keynest]\nfolder = "x"\nsecret = "oops"\n', encoding="utf-8"
+    )
+    with pytest.raises(rc.MarkerError):
+        rc.read_pyproject_marker(tmp_path)
+
+
+def test_read_pyproject_marker_malformed_toml_raises(tmp_path):
+    (tmp_path / "pyproject.toml").write_text("this is = = bad toml", encoding="utf-8")
+    with pytest.raises(rc.MarkerError):
+        rc.read_pyproject_marker(tmp_path)
+
+
+def test_detect_pyproject_overrides_keynest_and_remote(tmp_path):
+    """pyproject.toml [tool.keynest] beats both .keynest and the git remote."""
+    repo = tmp_path / "acme-api"
+    repo.mkdir()
+    _make_repo(repo, remote="git@github.com:acme/acme-api.git")
+    (repo / ".keynest").write_text('folder = "from-dot-keynest"\n', encoding="utf-8")
+    (repo / "pyproject.toml").write_text('[tool.keynest]\nfolder = "from-pyproject"\n', encoding="utf-8")
+    ctx = rc.detect(repo)
+    assert ctx is not None
+    assert ctx.source == "marker"
+    assert ctx.default_folder == "from-pyproject"
+
+
+def test_detect_keynest_used_when_no_pyproject_section(tmp_path):
+    """Falls back to .keynest when pyproject.toml has no [tool.keynest]."""
+    repo = tmp_path / "acme-api"
+    repo.mkdir()
+    _make_repo(repo, remote="git@github.com:acme/acme-api.git")
+    (repo / ".keynest").write_text('folder = "from-dot-keynest"\n', encoding="utf-8")
+    (repo / "pyproject.toml").write_text('[build-system]\nrequires = []\n', encoding="utf-8")
+    ctx = rc.detect(repo)
+    assert ctx is not None
+    assert ctx.source == "marker"
+    assert ctx.default_folder == "from-dot-keynest"
+
+
+def test_detect_malformed_pyproject_falls_through_to_keynest(tmp_path):
+    """A bad [tool.keynest] section is ignored; .keynest is tried next."""
+    repo = tmp_path / "acme-api"
+    repo.mkdir()
+    _make_repo(repo, remote="git@github.com:acme/acme-api.git")
+    (repo / ".keynest").write_text('folder = "from-dot-keynest"\n', encoding="utf-8")
+    (repo / "pyproject.toml").write_text('[tool.keynest]\nfolder = "x"\nbadkey = "y"\n', encoding="utf-8")
+    ctx = rc.detect(repo)
+    assert ctx is not None
+    assert ctx.source == "marker"
+    assert ctx.default_folder == "from-dot-keynest"

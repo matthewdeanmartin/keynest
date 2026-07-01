@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
@@ -30,20 +32,25 @@ SECURITY_NOTE = (
 )
 
 KEYRING_LISTING_NOTE = (
-    "keynest can only LIST secret maps it created itself.\n\n"
-    "Operating-system credential stores (Windows Credential Manager, macOS "
-    "Keychain, Linux Secret Service) do not offer a portable way to enumerate "
-    "all entries. So keynest keeps its own non-secret index of what it has "
-    "stored, at ~/.devsecrets/index.json (override with DEVSECRETS_HOME).\n\n"
-    "Consequences:\n"
-    "  - Secrets created by OTHER apps, or directly via keyring/keychain, will "
-    "not appear here. keynest does not know their service/username, and the OS "
-    "will not tell it.\n"
-    "  - If the index file is missing or points elsewhere, your secrets are "
-    "still safely IN the OS store, just not listed. Re-create the map with the "
-    "same folder/name to re-index it (the value will be overwritten).\n\n"
-    "Use 'Quick add password' or 'Paste .env' to add entries that keynest will "
-    "track."
+    "keynest discovers maps differently depending on the active OS-keyring backend.\n\n"
+    "On Windows Credential Manager, macOS Keychain, Linux Secret Service, and "
+    "Linux libsecret, keynest can enumerate credential identifiers and show "
+    "entries stored under its DeveloperSecretWorkbench service. On KWallet, "
+    "headless/null keyrings, and other unsupported backends, listing falls back "
+    "to keynest's non-secret index at ~/.devsecrets/index.json (override with "
+    "DEVSECRETS_HOME).\n\n"
+    "If a map you expect is missing:\n"
+    "  - Check the selected backend and folder. The default All view queries "
+    "only the OS keyring; AWS is opt-in.\n"
+    "  - Run `keynest diagnostics` and `keynest health` to check which keyring "
+    "is active and whether it works.\n"
+    "  - On a backend that cannot enumerate, a missing or relocated index means "
+    "stored values remain in the OS store but their paths cannot be listed.\n\n"
+    "Credentials created by other applications are hidden by default. Enable "
+    "'Show all OS credentials (names only)' to display their service/username "
+    "identifiers read-only when enumeration is supported. keynest does not "
+    "display, edit, or retain their values. On Windows, the native enumeration "
+    "API may return credential blobs in its result; keynest ignores them."
 )
 
 
@@ -136,6 +143,12 @@ class MainWindow(tk.Tk):
         backend_menu.add_command(label="Health check", command=self._health_check)
         backend_menu.add_command(label="AWS setup wizard...", command=self._aws_wizard)
         backend_menu.add_command(label="Generate AWS IAM policy", command=self._aws_policy)
+        if sys.platform == "win32":
+            backend_menu.add_separator()
+            backend_menu.add_command(
+                label="Windows Credential Manager...",
+                command=self._open_credential_manager,
+            )
         menubar.add_cascade(label="Backend", menu=backend_menu)
 
         tools_menu = tk.Menu(menubar, tearoff=0)
@@ -248,8 +261,8 @@ class MainWindow(tk.Tk):
         self._folder_panel.set_data(sorted(folders), refs, raw, select=select)
         if not refs and not raw:
             self._set_status(
-                "No secret maps tracked yet. Use 'Quick add password' or 'Paste .env'. "
-                "(keynest only lists what it created — see Help > Why is my list empty?)"
+                "No secret maps found. Use 'Quick add password' or 'Paste .env'. "
+                "If you expected a map, see Help > Why is my list empty?"
             )
         elif raw:
             self._set_status(
@@ -606,6 +619,13 @@ class MainWindow(tk.Tk):
 
     def _show_security(self) -> None:
         TextDialog(self, "Security posture", SECURITY_NOTE)
+
+    def _open_credential_manager(self) -> None:
+        """Open the Windows Credential Manager UI (Windows only)."""
+        try:
+            subprocess.Popen(["rundll32.exe", "keymgr.dll,KRShowKeyMgr"])  # noqa: S603,S607
+        except OSError as exc:
+            messagebox.showerror("Credential Manager", f"Could not open Credential Manager:\n{exc}")
 
     # -- misc ----------------------------------------------------------------
 

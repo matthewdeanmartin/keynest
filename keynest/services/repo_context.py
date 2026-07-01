@@ -31,6 +31,8 @@ _SSH_RE = re.compile(r"^[^@]+@(?P<host>[^:]+):(?P<path>.+)$")
 # The optional committed marker file at a repo root. It is secret-FREE by design:
 # only these keys are allowed, and none of them can hold a secret value.
 MARKER_FILENAME = ".keynest"
+PYPROJECT_FILENAME = "pyproject.toml"
+PYPROJECT_TOOL_SECTION = "keynest"
 _MARKER_ALLOWED_KEYS = {"folder", "default_map"}
 
 
@@ -263,6 +265,29 @@ def read_marker(root: Path) -> tuple[str, str | None] | None:
     return validate_marker(data)
 
 
+def read_pyproject_marker(root: Path) -> tuple[str, str | None] | None:
+    """Read and validate ``<root>/pyproject.toml`` ``[tool.keynest]`` section.
+
+    Returns ``(folder, default_map)`` when the section is present and valid.
+    Returns ``None`` if ``pyproject.toml`` does not exist or has no
+    ``[tool.keynest]`` section. Raises :class:`MarkerError` if the section is
+    present but violates the secret-free schema.
+    """
+    path = root / PYPROJECT_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (tomllib.TOMLDecodeError, OSError, UnicodeDecodeError) as exc:
+        raise MarkerError(f"Could not parse {PYPROJECT_FILENAME}: {exc}") from exc
+    section = data.get("tool", {}).get(PYPROJECT_TOOL_SECTION)
+    if section is None:
+        return None
+    if not isinstance(section, dict):
+        raise MarkerError(f"[tool.{PYPROJECT_TOOL_SECTION}] in {PYPROJECT_FILENAME} must be a table.")
+    return validate_marker(section)
+
+
 def write_marker(root: Path, folder: str, default_map: str | None = None) -> Path:
     """Write a ``.keynest`` marker at ``root``; return its path.
 
@@ -301,11 +326,16 @@ def _toml_str(value: str) -> str:
 def detect(start: Path | None = None) -> RepoContext | None:
     """Detect the repository context at ``start`` (default: cwd).
 
-    Resolution order: an explicit ``.keynest`` marker wins, then the git remote,
-    then the working-tree directory name. Returns ``None`` if not inside a git
-    repo. Never raises: any failure reading git metadata degrades to a local-dir
-    context. A malformed marker is ignored (falls through to inference) rather
-    than crashing detection.
+    Resolution order:
+
+    1. ``[tool.keynest]`` in ``pyproject.toml`` at the repository root.
+    2. An explicit ``.keynest`` marker file at the repository root.
+    3. The git remote URL (``origin`` preferred).
+    4. The working-tree directory name.
+
+    Returns ``None`` if not inside a git repo. Never raises: any failure reading
+    git metadata degrades to a local-dir context. A malformed marker is ignored
+    (falls through to the next source) rather than crashing detection.
     """
     try:
         root = find_repo_root(start)
@@ -314,7 +344,21 @@ def detect(start: Path | None = None) -> RepoContext | None:
     if root is None:
         return None
 
-    # 1. Explicit marker file overrides inferred identity.
+    # 1. pyproject.toml [tool.keynest] takes priority.
+    try:
+        marker = read_pyproject_marker(root)
+    except MarkerError:
+        marker = None
+    if marker is not None:
+        folder, default_map = marker
+        return RepoContext(
+            root=root,
+            source="marker",
+            marker_folder=folder,
+            default_map=default_map,
+        )
+
+    # 2. Explicit .keynest marker file overrides inferred identity.
     try:
         marker = read_marker(root)
     except MarkerError:
@@ -328,7 +372,7 @@ def detect(start: Path | None = None) -> RepoContext | None:
             default_map=default_map,
         )
 
-    # 2. Git remote identity.
+    # 3. Git remote identity.
     git_dir = None
     remote_url = None
     try:
@@ -350,7 +394,7 @@ def detect(start: Path | None = None) -> RepoContext | None:
                 source="remote",
             )
 
-    # 3. No usable remote: identify by the working-tree directory name.
+    # 4. No usable remote: identify by the working-tree directory name.
     return RepoContext(root=root, source="local-dir")
 
 

@@ -51,3 +51,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   folder (and optional `default_map`); it is secret-free by construction —
   unknown keys are rejected on read and cannot be written — and overrides
   inferred identity. New `keynest init-repo` command creates it
+- `[tool.keynest]` section in `pyproject.toml` is now read as a higher-priority
+  config source than `.keynest`; same secret-free schema applies
