@@ -14,7 +14,7 @@ __all__ = [
 ]
 
 __title__ = "keynest"
-__version__ = "0.1.0"
+__version__ = "0.0.1"
 __description__ = (
     "Developer secret workbench: a pure-Python keystore with GUI and CLI for OS keyring and AWS Secrets Manager"
 )
