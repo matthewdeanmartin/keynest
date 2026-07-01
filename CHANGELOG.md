@@ -58,4 +58,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GUI quick-add password dialog (name plus value)
 - GUI paste-`.env` dialog for bulk entry
 - `keynest` CLI and `keynest-gui` console scripts
-
