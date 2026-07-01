@@ -42,8 +42,8 @@ keynest prevents.
 Therefore **transparent relocation changes only:**
 
 1. the **default folder** keynest selects when launched, and
-2. the **filtered view** keynest shows (which maps it surfaces first), and
-3. the **identity** used to name new folders.
+1. the **filtered view** keynest shows (which maps it surfaces first), and
+1. the **identity** used to name new folders.
 
 It does **not**:
 
@@ -67,24 +67,24 @@ from the current working directory.
    pointer.) If none is found before the filesystem root or `$HOME`, there is no
    repo context — fall back to `/default` exactly as today.
 
-2. **Read the remote.** Prefer `origin`, else the first remote, by parsing
+1. **Read the remote.** Prefer `origin`, else the first remote, by parsing
    `.git/config` directly (no `git` subprocess required; std-lib `configparser`
    per `spec.md` §14). Extract the remote URL.
 
-3. **Classify the host.** Normalize the remote URL (both SSH and HTTPS forms):
+1. **Classify the host.** Normalize the remote URL (both SSH and HTTPS forms):
 
-   | Remote URL                                   | host         | owner   | repo       |
+   | Remote URL | host | owner | repo |
    |----------------------------------------------|--------------|---------|------------|
-   | `git@github.com:acme/acme-api.git`           | github.com   | acme    | acme-api   |
-   | `https://github.com/acme/acme-api.git`       | github.com   | acme    | acme-api   |
-   | `git@gitlab.com:acme/group/acme-api.git`     | gitlab.com   | acme/group | acme-api |
-   | `https://ghe.corp.example/acme/x.git`        | ghe.corp…    | acme    | x          |
-   | (no remote)                                  | —            | —       | (dir name) |
+   | `git@github.com:acme/acme-api.git` | github.com | acme | acme-api |
+   | `https://github.com/acme/acme-api.git` | github.com | acme | acme-api |
+   | `git@gitlab.com:acme/group/acme-api.git` | gitlab.com | acme/group | acme-api |
+   | `https://ghe.corp.example/acme/x.git` | ghe.corp… | acme | x |
+   | (no remote) | — | — | (dir name) |
 
    GitLab subgroups (`owner/group/subgroup/repo`) must be preserved in the owner
    segment. Strip a trailing `.git`. Lowercase the host; preserve case elsewhere.
 
-4. **Derive the folder.** See §5 for the naming scheme and its trade-offs.
+1. **Derive the folder.** See §5 for the naming scheme and its trade-offs.
 
 ### 4.2 RepoContext shape
 
@@ -122,18 +122,17 @@ unambiguous**. Two repos named `api` under different owners must not collide.
 
 ### 5.1 Options considered
 
-| Scheme            | Example folder                  | Pros                          | Cons                                  |
+| Scheme | Example folder | Pros | Cons |
 |-------------------|---------------------------------|-------------------------------|---------------------------------------|
-| A. repo only      | `/acme-api`                     | shortest, matches mental model| collisions across owners/forks        |
-| B. owner/repo     | `/acme/acme-api`                | disambiguates forks           | one collision case left (host)        |
-| C. host/owner/repo| `/github.com/acme/acme-api`     | globally unique               | verbose; deep nesting (spec discourages) |
-| D. local dir name | `/acme-api` (from folder name)  | works with no remote          | brittle if dirs renamed/duplicated    |
+| A. repo only | `/acme-api` | shortest, matches mental model| collisions across owners/forks |
+| B. owner/repo | `/acme/acme-api` | disambiguates forks | one collision case left (host) |
+| C. host/owner/repo| `/github.com/acme/acme-api` | globally unique | verbose; deep nesting (spec discourages) |
+| D. local dir name | `/acme-api` (from folder name) | works with no remote | brittle if dirs renamed/duplicated |
 
 ### 5.2 Recommendation
 
 **Default to B (`owner/repo`) when a remote is known, D (directory name) when it
-is not.** Make the scheme a single configurable setting (`relocation.scheme =
-repo | owner-repo | host-owner-repo`) so power users can opt into C for maximum
+is not.** Make the scheme a single configurable setting (`relocation.scheme = repo | owner-repo | host-owner-repo`) so power users can opt into C for maximum
 disambiguation.
 
 Rationale: `owner/repo` is what developers say out loud ("acme/acme-api"),
@@ -170,14 +169,14 @@ On launch, after computing `RepoContext`:
    > 📂 Detected repo **acme/acme-api** (github.com). New secrets default here.
    > [Use /default instead] [Pin this choice]
 
-2. New maps (`New map`, `Quick add`, `Paste .env`) default their folder to
+1. New maps (`New map`, `Quick add`, `Paste .env`) default their folder to
    `ctx.default_folder` instead of `default`.
 
-3. The folder is **a default, never a jail.** All other folders remain visible
+1. The folder is **a default, never a jail.** All other folders remain visible
    and selectable. The user can always switch to `/default` or any other folder;
    relocation only changes what is *pre-selected*.
 
-4. If no repo is detected, behavior is identical to today (defaults to
+1. If no repo is detected, behavior is identical to today (defaults to
    `/default`). The feature is invisible when irrelevant.
 
 The detection result should be surfaced in **Diagnostics** (`spec.md` references
@@ -253,16 +252,16 @@ the repo — **without** the danger of secrets in the tree. The repo carries the
    path-parsing call site. *Recommendation: pick single-segment with a `.`
    join (`acme.acme-api`) for v1 to avoid touching `parse_path` semantics; revisit
    multi-segment later.*
-2. **Default scheme:** `owner-repo` (recommended) vs `repo` vs `host-owner-repo`.
-3. **Migration:** existing users have secrets under `/default` and hand-named
+1. **Default scheme:** `owner-repo` (recommended) vs `repo` vs `host-owner-repo`.
+1. **Migration:** existing users have secrets under `/default` and hand-named
    folders. Detection must never strand them — they stay listed. Do we offer a
    one-click "move these `/default` maps into the detected folder"? *Recommend:
    offer, never automatic.*
-4. **Monorepo / nested repos:** which root wins when nested? *Recommend: the
+1. **Monorepo / nested repos:** which root wins when nested? *Recommend: the
    nearest `.git` going up; document it.*
-5. **Worktrees & submodules:** confirm `.git`-file following resolves to the
+1. **Worktrees & submodules:** confirm `.git`-file following resolves to the
    intended identity (a submodule's remote ≠ the superproject's).
-6. **Privacy:** the remote URL can embed a username or token
+1. **Privacy:** the remote URL can embed a username or token
    (`https://user:token@host/...`). When recording `remote_url` in diagnostics or
    `.keynest`, **strip credentials** from the URL first.
 
@@ -310,4 +309,6 @@ informational).
 - Fail-safe: malformed `.git/config` → `/default`, no exception.
 - Security: credential-bearing remote URL never appears verbatim in diagnostics
   or `.keynest`.
+
+```
 ```

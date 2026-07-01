@@ -9,7 +9,7 @@ A small Tkinter desktop app plus CLI that helps a single software developer stop
 The app manages secret maps in either:
 
 1. the laptop OS secret store via Python `keyring`, or
-2. AWS Secrets Manager via `boto3`.
+1. AWS Secrets Manager via `boto3`.
 
 The app’s primary UX goal is not merely “store and copy secrets.” It should make **safe usage paths easier than unsafe usage paths**.
 
@@ -38,13 +38,13 @@ db_password = secrets["DATABASE_PASSWORD"]
 
 V1 is **not**:
 
-* a team secret manager
-* a password manager replacement
-* a browser autofill tool
-* a SaaS
-* a GitHub Actions secret sync tool
-* a Kubernetes/Vault/Doppler replacement
-* an enterprise approval/workflow/audit platform
+- a team secret manager
+- a password manager replacement
+- a browser autofill tool
+- a SaaS
+- a GitHub Actions secret sync tool
+- a Kubernetes/Vault/Doppler replacement
+- an enterprise approval/workflow/audit platform
 
 Those can be future adapters.
 
@@ -240,44 +240,58 @@ Tkinter app with a practical three-panel layout.
 
 Features:
 
-* default folder always present
-* create folder
-* rename folder
-* delete empty folder
-* show counts
-* backend filter:
+- default folder always present
 
-  * All
-  * OS keyring
-  * AWS Secrets Manager
+- create folder
+
+- rename folder
+
+- delete empty folder
+
+- show counts
+
+- backend filter:
+
+  - All
+  - OS keyring
+  - AWS Secrets Manager
 
 ### Middle panel: selected secret map
 
 Fields:
 
-* folder
-* name
-* backend
-* description
-* tags
-* key/value grid
+- folder
+- name
+- backend
+- description
+- tags
+- key/value grid
 
 Key/value grid behavior:
 
-* values masked by default
-* per-cell reveal button
-* per-row copy button
-* add key
-* rename key
-* delete key
-* duplicate key
-* generate random value
-* mark key as “non-secret config” vs “secret”
-* validation for Bash-compatible names:
+- values masked by default
 
-  * `DATABASE_URL` good
-  * `database-url` warning
-  * `1TOKEN` warning
+- per-cell reveal button
+
+- per-row copy button
+
+- add key
+
+- rename key
+
+- delete key
+
+- duplicate key
+
+- generate random value
+
+- mark key as “non-secret config” vs “secret”
+
+- validation for Bash-compatible names:
+
+  - `DATABASE_URL` good
+  - `database-url` warning
+  - `1TOKEN` warning
 
 ### Right panel: usage actions
 
@@ -285,18 +299,18 @@ This is where the app becomes useful.
 
 Actions:
 
-* Run command with secrets
-* Generate code snippet
-* Generate CLI command
-* Generate wrapper script
-* Copy selected value
-* Copy key name
-* Copy secret reference
-* Generate AWS IAM policy
-* Generate `.gitignore` suggestions
-* Scan selected folder for `.env` files
-* Import from `.env`
-* Dangerous export to `.env`
+- Run command with secrets
+- Generate code snippet
+- Generate CLI command
+- Generate wrapper script
+- Copy selected value
+- Copy key name
+- Copy secret reference
+- Generate AWS IAM policy
+- Generate `.gitignore` suggestions
+- Scan selected folder for `.env` files
+- Import from `.env`
+- Dangerous export to `.env`
 
 ## 6. CLI
 
@@ -332,11 +346,11 @@ devsecrets run mastodon-mock/dev -- python app.py
 Behavior:
 
 1. Load secret map from OS keyring or AWS.
-2. Merge secrets into subprocess environment.
-3. Start process.
-4. Do not write secrets to disk.
-5. Do not print secrets.
-6. On exit, drop references.
+1. Merge secrets into subprocess environment.
+1. Start process.
+1. Do not write secrets to disk.
+1. Do not print secrets.
+1. On exit, drop references.
 
 This mirrors the best prior-art pattern from tools like 1Password, Doppler, Bitwarden, and Infisical.
 
@@ -461,13 +475,13 @@ devsecrets import-env mastodon-mock/dev .env
 
 GUI import behavior:
 
-* parse file
-* preview keys
-* warn about suspicious values
-* store into selected backend
-* offer to add `.env` to `.gitignore`
-* offer to rename original file to `.env.migrated.bak`
-* offer to securely delete? Maybe no, because cross-platform secure deletion is hard to promise.
+- parse file
+- preview keys
+- warn about suspicious values
+- store into selected backend
+- offer to add `.env` to `.gitignore`
+- offer to rename original file to `.env.migrated.bak`
+- offer to securely delete? Maybe no, because cross-platform secure deletion is hard to promise.
 
 ### Export `.env`
 
@@ -483,9 +497,9 @@ GUI wording:
 
 Buttons:
 
-* Recommended: Run command instead
-* Recommended: Generate code instead
-* Dangerous: Export `.env`
+- Recommended: Run command instead
+- Recommended: Generate code instead
+- Dangerous: Export `.env`
 
 ## 9. Copy/paste support
 
@@ -493,17 +507,22 @@ Copy/paste is allowed because tools like pgAdmin, database clients, SaaS dashboa
 
 Copy behavior:
 
-* copy selected secret to clipboard
-* show countdown
-* auto-clear clipboard after configurable interval
-* default: 30 seconds
-* optional: clear on app minimize/close
-* maintain local audit event:
+- copy selected secret to clipboard
 
-  * copied key name
-  * time
-  * backend
-  * never the value
+- show countdown
+
+- auto-clear clipboard after configurable interval
+
+- default: 30 seconds
+
+- optional: clear on app minimize/close
+
+- maintain local audit event:
+
+  - copied key name
+  - time
+  - backend
+  - never the value
 
 Clipboard warning:
 
@@ -518,12 +537,12 @@ AWS must be first-class from day one.
 The wizard should:
 
 1. detect AWS CLI/profile availability
-2. show current caller identity
-3. select profile/region
-4. test `secretsmanager:ListSecrets`
-5. create a test secret under `devsecrets/default/test`
-6. delete test secret or schedule deletion
-7. generate least-privilege IAM policy
+1. show current caller identity
+1. select profile/region
+1. test `secretsmanager:ListSecrets`
+1. create a test secret under `devsecrets/default/test`
+1. delete test secret or schedule deletion
+1. generate least-privilege IAM policy
 
 ### AWS IAM policy generator
 
@@ -554,78 +573,78 @@ Potentially omit delete by default and make it a checkbox.
 
 V1 assumes:
 
-* user already has AWS credentials configured
-* user has permission to create/manage secrets
-* user is storing developer secrets for themselves
-* user is not building a multi-user governance platform
+- user already has AWS credentials configured
+- user has permission to create/manage secrets
+- user is storing developer secrets for themselves
+- user is not building a multi-user governance platform
 
 ## 11. Search and discovery
 
 Search fields:
 
-* secret map name
-* folder
-* key names
-* tags
-* descriptions
-* backend
-* AWS ARN
-* updated date
+- secret map name
+- folder
+- key names
+- tags
+- descriptions
+- backend
+- AWS ARN
+- updated date
 
 Never search secret values by default.
 
 Optional advanced mode:
 
-* “Search secret values locally”
-* requires warning
-* does not persist search index
+- “Search secret values locally”
+- requires warning
+- does not persist search index
 
 ## 12. Secret value tools
 
 Per key:
 
-* generate random password
-* generate API token placeholder
-* generate UUID
-* generate hex token
-* generate base64 token
-* mark as rotated
-* copy value
-* reveal temporarily
-* validate URL
-* validate JSON
-* validate PEM-ish text
-* detect accidental whitespace/newline
+- generate random password
+- generate API token placeholder
+- generate UUID
+- generate hex token
+- generate base64 token
+- mark as rotated
+- copy value
+- reveal temporarily
+- validate URL
+- validate JSON
+- validate PEM-ish text
+- detect accidental whitespace/newline
 
 For maps:
 
-* compare two maps
-* duplicate map
-* move between backends
-* sync OS keyring → AWS
-* sync AWS → OS keyring
-* rename folder/name
-* import `.env`
-* import JSON
-* export redacted JSON
-* export `.env` only with warning
+- compare two maps
+- duplicate map
+- move between backends
+- sync OS keyring → AWS
+- sync AWS → OS keyring
+- rename folder/name
+- import `.env`
+- import JSON
+- export redacted JSON
+- export `.env` only with warning
 
 ## 13. Code generator
 
 The GUI should have a “Use this secret” tab that generates:
 
-* Bash `devsecrets run`
-* Bash direct lookup
-* Python with `devsecrets_sdk`
-* Python raw `keyring`
-* Python raw `boto3`
-* Node/TypeScript AWS SDK
-* Node/TypeScript via `devsecrets run`
-* Java AWS SDK
-* Java via `devsecrets run`
-* Docker command
-* Docker Compose snippet using runtime wrapper
-* pgAdmin/manual copy checklist
+- Bash `devsecrets run`
+- Bash direct lookup
+- Python with `devsecrets_sdk`
+- Python raw `keyring`
+- Python raw `boto3`
+- Node/TypeScript AWS SDK
+- Node/TypeScript via `devsecrets run`
+- Java AWS SDK
+- Java via `devsecrets run`
+- Docker command
+- Docker Compose snippet using runtime wrapper
+- pgAdmin/manual copy checklist
 
 The core value is here. This is the wedge.
 
@@ -709,24 +728,24 @@ Honest threat model:
 
 Protects against:
 
-* accidental Git commits of `.env`
-* plaintext secrets sitting in random files
-* secrets in Notepad
-* secrets copied repeatedly into shell scripts
-* local project folders full of credentials
-* casual shoulder surfing via masked UI
-* some clipboard exposure via timeout
+- accidental Git commits of `.env`
+- plaintext secrets sitting in random files
+- secrets in Notepad
+- secrets copied repeatedly into shell scripts
+- local project folders full of credentials
+- casual shoulder surfing via masked UI
+- some clipboard exposure via timeout
 
 Does **not** fully protect against:
 
-* malware running as the same user
-* compromised Python process
-* debugger/memory scraping
-* malicious shell profile
-* malicious package imported by the app
-* AWS identity compromise
-* clipboard manager history unless clearing works
-* terminal scrollback if user prints secrets
+- malware running as the same user
+- compromised Python process
+- debugger/memory scraping
+- malicious shell profile
+- malicious package imported by the app
+- AWS identity compromise
+- clipboard manager history unless clearing works
+- terminal scrollback if user prints secrets
 
 The app should say this plainly.
 
@@ -734,60 +753,60 @@ The app should say this plainly.
 
 ### Phase 1: Local OS keyring + GUI CRUD
 
-* Tkinter GUI
-* OS keyring backend
-* local non-secret index
-* folders
-* default folder
-* create/edit/delete secret maps
-* masked values
-* reveal/copy with timeout
-* import `.env`
-* generate Python/keyring snippet
-* generate `devsecrets run` command
+- Tkinter GUI
+- OS keyring backend
+- local non-secret index
+- folders
+- default folder
+- create/edit/delete secret maps
+- masked values
+- reveal/copy with timeout
+- import `.env`
+- generate Python/keyring snippet
+- generate `devsecrets run` command
 
 ### Phase 2: CLI
 
-* `list`
-* `get`
-* `set`
-* `run`
-* `import-env`
-* `export-env` with scary flag
-* `health`
+- `list`
+- `get`
+- `set`
+- `run`
+- `import-env`
+- `export-env` with scary flag
+- `health`
 
 ### Phase 3: AWS first-class backend
 
-* AWS profile selector
-* list/create/edit AWS secrets
-* JSON `SecretString`
-* naming convention
-* IAM policy generator
-* AWS health check
-* sync OS ↔ AWS
+- AWS profile selector
+- list/create/edit AWS secrets
+- JSON `SecretString`
+- naming convention
+- IAM policy generator
+- AWS health check
+- sync OS ↔ AWS
 
 ### Phase 4: Developer code generation
 
-* Bash
-* Python
-* Node
-* TypeScript
-* Java
-* Docker
-* Docker Compose
-* raw AWS SDK snippets
-* local `devsecrets run` snippets
+- Bash
+- Python
+- Node
+- TypeScript
+- Java
+- Docker
+- Docker Compose
+- raw AWS SDK snippets
+- local `devsecrets run` snippets
 
 ### Phase 5: polish
 
-* diff secret maps
-* redacted export
-* rotation reminders
-* key naming lint
-* stale secret detection
-* recent usage log
-* backup of non-secret index
-* Linux backend diagnostics
+- diff secret maps
+- redacted export
+- rotation reminders
+- key naming lint
+- stale secret detection
+- recent usage log
+- backup of non-secret index
+- Linux backend diagnostics
 
 ## 18. The product opinion
 
@@ -819,13 +838,13 @@ because the real world has pgAdmin, AWS consoles, SaaS dashboards, and annoying 
 
 1. Should this be **open source local-only software**, or are you imagining a paid/pro version later? It's gonna always be free.
 
-2. Should the app include its own tiny Python SDK package, e.g. `devsecrets-sdk`, or should generated code only use raw `keyring` / `boto3`? It should generate code that does not reference the tool itself.
+1. Should the app include its own tiny Python SDK package, e.g. `devsecrets-sdk`, or should generated code only use raw `keyring` / `boto3`? It should generate code that does not reference the tool itself.
 
-3. For AWS, do you want one secret per map as JSON, or one AWS secret per individual key?  Encourage people to stuff a whole connection string into a json document. Discourage deeply nested json documents. A single key value pair should still be json in storage.
+1. For AWS, do you want one secret per map as JSON, or one AWS secret per individual key? Encourage people to stuff a whole connection string into a json document. Discourage deeply nested json documents. A single key value pair should still be json in storage.
 
-4. Should the OS keyring and AWS versions be treated as separate stores, or should the app encourage **syncing/mirroring** between them? Uh, no mirroring feature yet.
+1. Should the OS keyring and AWS versions be treated as separate stores, or should the app encourage **syncing/mirroring** between them? Uh, no mirroring feature yet.
 
-5. Should secret maps support environments as a special concept, like `/project/dev`, `/project/staging`, `/project/prod`, or should environments just be folders by convention? Yeah, I guess so.
+1. Should secret maps support environments as a special concept, like `/project/dev`, `/project/staging`, `/project/prod`, or should environments just be folders by convention? Yeah, I guess so.
 
 And more spec talk
 
@@ -860,7 +879,6 @@ developer docs/code snippets are a product feature, not an afterthought
 
 From keyring:
 
-do not invent local crypto if the OS already gives you a credential store
----
+## do not invent local crypto if the OS already gives you a credential store
 
 Also, this app is going to be kind of like aws-vault, bug in python and with a gui.

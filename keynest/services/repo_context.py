@@ -18,7 +18,7 @@ import re
 try:
     import tomllib
 except ImportError:  # Python < 3.11
-    import tomli as tomllib # type: ignore[no-redef]
+    import tomli as tomllib  # type: ignore[no-redef]
 
 from dataclasses import dataclass
 from pathlib import Path
