@@ -6,9 +6,10 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from keynest.backends.base import BackendError, SecretBackend
+from keynest.backends.os_keyring import OsKeyringBackend
 from keynest.backends.registry import get_backend
-from keynest.model import BackendId, SecretMap, SecretMapRef, parse_path
-from keynest.services import codegen, diagnostics, maptools
+from keynest.model import BackendId, RawCredential, SecretMap, SecretMapRef, parse_path
+from keynest.services import codegen, diagnostics, maptools, repo_context
 from keynest.services.audit import AuditLog
 from keynest.services.aws_policy import generate_policy_json
 from keynest.services.clipboard import CLIPBOARD_WARNING, ClipboardManager
@@ -17,7 +18,8 @@ from keynest.services.index_store import IndexStore
 from keynest.ui.actions_panel import ActionsPanel
 from keynest.ui.aws_wizard import AwsWizardDialog
 from keynest.ui.dialogs import CodeViewerDialog, TextDialog
-from keynest.ui.folder_panel import FolderPanel
+from keynest.ui.folder_panel import RAW_FOLDER, FolderPanel
+from keynest.ui.geometry import center_fraction
 from keynest.ui.quick_dialogs import PasteEnvDialog, QuickAddPasswordDialog
 from keynest.ui.secret_editor import SecretEditor
 
@@ -52,14 +54,29 @@ class MainWindow(tk.Tk):
         """Build the menu, three panels, and load the OS keyring backend."""
         super().__init__()
         self.title("keynest — Developer Secret Workbench")
-        self.geometry("1024x600")
+        # Open at 75% of the screen, centered.
+        center_fraction(self, 0.75)
 
         self._backend_filter: BackendId | None = None
+        self._show_all_os_creds = False
         self._current_map: SecretMap | None = None
+        # The raw OS credential currently shown (read-only), if any.
+        self._current_raw: RawCredential | None = None
         self._clipboard = ClipboardManager(self)
+
+        # Transparent repo relocation: if launched inside a git repo, default the
+        # folder to that repo's identity. This is a default, never a jail.
+        self._repo_ctx = repo_context.detect()
+        # When the user clicks "Use /default instead", we stop steering to the
+        # repo folder for the rest of the session.
+        self._repo_default_active = self._repo_ctx is not None
+        # Pre-select the repo folder only on the first refresh, so we don't
+        # override the user's later folder choices.
+        self._repo_preselect_pending = self._repo_ctx is not None
 
         self._build_menu()
         self._build_toolbar()
+        self._build_repo_banner()
 
         paned = ttk.Panedwindow(self, orient="horizontal")
         paned.pack(fill="both", expand=True)
@@ -72,6 +89,9 @@ class MainWindow(tk.Tk):
             on_delete_map=self._delete_map,
             on_rename_map=self._rename_map,
             on_duplicate_map=self._duplicate_map,
+            on_select_raw=self._select_raw_credential,
+            on_show_all_change=self._toggle_show_all_os_creds,
+            on_folder_select=self._folder_selected,
         )
         self._editor = SecretEditor(paned, on_save=self._save_map, on_copy_value=self._copy_value)
         self._actions = self._build_actions(paned)
@@ -106,7 +126,7 @@ class MainWindow(tk.Tk):
         file_menu.add_command(label="Quick add password...", command=self._quick_add_password)
         file_menu.add_command(label="Paste .env...", command=self._paste_env)
         file_menu.add_separator()
-        file_menu.add_command(label="New secret map", command=lambda: self._new_map("default"))
+        file_menu.add_command(label="New secret map", command=self._new_map_default)
         file_menu.add_command(label="Refresh", command=self.refresh)
         file_menu.add_separator()
         file_menu.add_command(label="Quit", command=self._quit)
@@ -150,8 +170,43 @@ class MainWindow(tk.Tk):
         ttk.Button(toolbar, text="+ Quick add password", command=self._quick_add_password).pack(side="left")
         ttk.Button(toolbar, text="Paste .env", command=self._paste_env).pack(side="left", padx=6)
         ttk.Separator(toolbar, orient="vertical").pack(side="left", fill="y", padx=6)
-        ttk.Button(toolbar, text="New map", command=lambda: self._new_map("default")).pack(side="left")
+        ttk.Button(toolbar, text="New map", command=self._new_map_default).pack(side="left")
         ttk.Button(toolbar, text="Refresh", command=self.refresh).pack(side="left", padx=6)
+
+    def _build_repo_banner(self) -> None:
+        """Show a dismissible banner when a repo was detected on launch."""
+        self._repo_banner = ttk.Frame(self, padding=(8, 3))
+        if self._repo_ctx is None:
+            return
+        ctx = self._repo_ctx
+        slug = ctx.slug or ctx.root.name
+        host = f" ({ctx.host})" if ctx.host else ""
+        ttk.Label(
+            self._repo_banner,
+            text=f"📂 Detected repo {slug}{host} — new secrets default to /{ctx.default_folder}",
+        ).pack(side="left")
+        ttk.Button(self._repo_banner, text="Use /default instead", command=self._disable_repo_default).pack(
+            side="right"
+        )
+        self._repo_banner.pack(fill="x")
+
+    def _effective_default_folder(self) -> str:
+        """The folder new maps default to: the repo folder, unless disabled."""
+        if self._repo_default_active and self._repo_ctx is not None:
+            return self._repo_ctx.default_folder
+        return "default"
+
+    def _new_map_default(self) -> None:
+        """Create a new map in the effective default folder."""
+        self._new_map(self._effective_default_folder())
+
+    def _disable_repo_default(self) -> None:
+        """Stop steering new secrets to the detected repo folder this session."""
+        self._repo_default_active = False
+        if hasattr(self, "_repo_banner"):
+            self._repo_banner.pack_forget()
+        self._set_status("Repo default disabled; new secrets go to /default.")
+        self.refresh()
 
     def _build_actions(self, parent: tk.Misc) -> ActionsPanel:
         actions = {
@@ -180,11 +235,72 @@ class MainWindow(tk.Tk):
                 refs.extend(backend.list_secret_maps())
             except BackendError as exc:
                 self._set_status(f"{backend_id}: {exc}")
-        self._folder_panel.set_data(sorted(folders), refs)
-        if not refs:
+        # Ensure the detected repo folder is visible even before any map exists
+        # there, so the user can create the first secret in it.
+        if self._repo_default_active and self._repo_ctx is not None:
+            folders.add(self._repo_ctx.default_folder)
+        raw = self._raw_credentials() if self._show_all_os_creds else []
+        # On first load inside a repo, steer the selection to the repo folder.
+        select = None
+        if self._repo_preselect_pending and self._repo_ctx is not None:
+            select = self._repo_ctx.default_folder
+            self._repo_preselect_pending = False
+        self._folder_panel.set_data(sorted(folders), refs, raw, select=select)
+        if not refs and not raw:
             self._set_status(
                 "No secret maps tracked yet. Use 'Quick add password' or 'Paste .env'. "
                 "(keynest only lists what it created — see Help > Why is my list empty?)"
+            )
+        elif raw:
+            self._set_status(
+                f"Showing {len(refs)} keynest map(s) and {len(raw)} other OS " "credential(s) (names only, read-only)."
+            )
+
+    def _raw_credentials(self) -> list[RawCredential]:
+        """List non-keynest OS credentials, tolerating unsupported backends."""
+        backend = self._backend_for("os-keyring")
+        if not isinstance(backend, OsKeyringBackend):  # pragma: no cover - defensive
+            return []
+        try:
+            return backend.list_raw_credentials()
+        except BackendError as exc:
+            self._set_status(f"os-keyring: {exc}")
+            return []
+
+    def _toggle_show_all_os_creds(self, show_all: bool) -> None:
+        self._show_all_os_creds = show_all
+        self.refresh()
+
+    def _select_raw_credential(self, cred: RawCredential) -> None:
+        """Show a read-only OS credential's identifiers; never read its value."""
+        self._current_map = None
+        self._current_raw = cred
+        user = cred.username or "(no username)"
+        self._editor.load_readonly(
+            title=cred.service,
+            backend_label="os-keyring (read-only)",
+            description=f"Non-keynest OS credential. Username: {user}",
+            value_rows=[("value", "(opaque — not read; use Generate code)")],
+        )
+        self._set_status(
+            f"OS credential — service: {cred.service}  |  username: {user}  "
+            "(read-only; keynest does not manage or read this secret)"
+        )
+
+    def _folder_selected(self, folder: str | None) -> None:
+        """React to a folder selection; show a summary for the OS-creds folder."""
+        if folder == RAW_FOLDER:
+            count = len(self._folder_panel.raw_credentials())
+            self._current_map = None
+            self._current_raw = None
+            self._editor.load_readonly(
+                title=RAW_FOLDER,
+                backend_label="os-keyring (read-only)",
+                description=(
+                    f"{count} OS credential(s) created by other apps. "
+                    "Select one to view its identifiers and generate access code. "
+                    "keynest never reads their secret values."
+                ),
             )
 
     def _change_backend_filter(self, backend_id: BackendId | None) -> None:
@@ -197,6 +313,7 @@ class MainWindow(tk.Tk):
         try:
             backend = self._backend_for(ref.backend)
             self._current_map = backend.get_secret_map(ref.folder, ref.name)
+            self._current_raw = None
             self._editor.load(self._current_map)
             self._set_status(f"Loaded {ref.path}")
         except BackendError as exc:
@@ -209,6 +326,7 @@ class MainWindow(tk.Tk):
         backend_id = self._backend_filter or "os-keyring"
         new_map = SecretMap(backend=backend_id, folder=folder, name=name)
         self._current_map = new_map
+        self._current_raw = None
         self._editor.load(new_map)
         self._set_status(f"New map {new_map.path} (add keys, then Save)")
 
@@ -221,13 +339,25 @@ class MainWindow(tk.Tk):
         self.refresh()
         self._select_map(ref)
 
+    def _target_folder(self) -> str:
+        """Folder for new secrets: the selected real folder, else the default.
+
+        The synthetic ``(os credentials)`` folder is read-only, so it never
+        becomes a creation target.
+        """
+        selected = self._folder_panel.selected_folder()
+        if selected and selected != RAW_FOLDER:
+            return selected
+        return self._effective_default_folder()
+
     def _quick_add_password(self) -> None:
         backend_id = self._active_backend_id()
-        QuickAddPasswordDialog(self, self._backend_for(backend_id), backend_id, self._on_quick_saved)
+        folder = self._target_folder()
+        QuickAddPasswordDialog(self, self._backend_for(backend_id), backend_id, self._on_quick_saved, folder=folder)
 
     def _paste_env(self) -> None:
         backend_id = self._active_backend_id()
-        folder = self._folder_panel.selected_folder() or "default"
+        folder = self._target_folder()
         PasteEnvDialog(
             self,
             self._backend_for(backend_id),
@@ -330,6 +460,10 @@ class MainWindow(tk.Tk):
         )
 
     def _generate_code(self) -> None:
+        # A raw OS credential has no keynest structure: emit raw-access snippets.
+        if self._current_raw is not None:
+            CodeViewerDialog(self, codegen.raw_snippets(self._current_raw))
+            return
         if (secret_map := self._require_current()) is None:
             return
         CodeViewerDialog(self, codegen.all_snippets(secret_map))
@@ -339,7 +473,7 @@ class MainWindow(tk.Tk):
         region = simpledialog.askstring("AWS IAM policy", "Region:", parent=self) or "<region>"
         folder = self._folder_panel.selected_folder()
         policy = generate_policy_json(region, account, folder=folder)
-        TextDialog(self, "AWS IAM policy", policy)
+        TextDialog(self, "AWS IAM policy", policy, wrap=False)
 
     def _aws_wizard(self) -> None:
         AwsWizardDialog(self)
@@ -395,7 +529,12 @@ class MainWindow(tk.Tk):
     def _redacted_export(self) -> None:
         if (secret_map := self._require_current()) is None:
             return
-        TextDialog(self, f"Redacted export — {secret_map.path}", maptools.export_redacted_json(secret_map))
+        TextDialog(
+            self,
+            f"Redacted export — {secret_map.path}",
+            maptools.export_redacted_json(secret_map),
+            wrap=False,
+        )
 
     def _diff_maps(self) -> None:
         if (left := self._require_current()) is None:
@@ -416,7 +555,7 @@ class MainWindow(tk.Tk):
         lines += [f"  ~ {k}" for k in diff.changed]
         if not diff.has_changes:
             lines.append("  (identical keys and values)")
-        TextDialog(self, "Diff maps", "\n".join(lines))
+        TextDialog(self, "Diff maps", "\n".join(lines), wrap=False)
 
     def _stale_maps(self) -> None:
         days = simpledialog.askinteger(
@@ -443,10 +582,10 @@ class MainWindow(tk.Tk):
             f"{e.timestamp}  {e.action:<12} /{e.folder}/{e.name}{(' ' + e.key) if e.key else ''}  [{e.backend}]"
             for e in events
         ]
-        TextDialog(self, "Recent activity", "\n".join(lines))
+        TextDialog(self, "Recent activity", "\n".join(lines), wrap=False)
 
     def _show_diagnostics(self) -> None:
-        TextDialog(self, "Diagnostics", "\n".join(diagnostics.collect().as_lines()))
+        TextDialog(self, "Diagnostics", "\n".join(diagnostics.collect().as_lines()), wrap=False)
 
     def _backup_index(self) -> None:
         destination = IndexStore().backup()

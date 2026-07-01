@@ -24,7 +24,9 @@ currently backend-specific; see [Backend differences](#backend-differences).
 ## Paths and folders
 
 The canonical path is `/folder/name`, for example `/my-app/dev`. CLI arguments accept that form without the leading
-slash (`my-app/dev`). A bare name such as `github-token` means `/default/github-token`.
+slash (`my-app/dev`). Outside a Git repository, a bare name such as `github-token` means
+`/default/github-token`. Inside a repository it defaults to that repository's folder. Explicit paths always win; see
+[repository-aware defaults](repositories.md).
 
 Folders are organizational labels, not directories. The `default` folder always appears. Empty folders are not
 persisted: a folder exists once it contains a map.
@@ -45,24 +47,36 @@ password: {"KEY":"value", ...}
 The native `keyring` backend may translate those fields into platform-specific target names. Treat the representation
 above as keynest's logical addressing scheme, not as a guarantee about labels displayed by every OS utility.
 
-### Why keynest cannot see your other Windows credentials
+### Credential discovery
 
-keynest does not scan Windows Credential Manager. It asks `keyring` for an exact service and username, always using
-the service `DeveloperSecretWorkbench` and a map path that keynest already knows. The `keyring` backend interface used
-by keynest has exact get/set/delete operations but no portable list-all operation.
+Python `keyring` exposes exact get/set/delete operations but no portable list operation. keynest adds enumeration for
+the native Windows Credential Manager, macOS Keychain, Linux Secret Service, and Linux libsecret backends. keynest
+keeps and returns only service and username identifiers; it does not display or persist values discovered during
+enumeration.
 
-Windows does have a native `CredEnumerate` API, so saying that Windows has *no* enumeration power would be inaccurate.
-keynest does not call that API, and the Windows implementation in Python `keyring` does not use it for keynest's list
-operation. Consequently, credentials created by browsers, Git, other applications, or another `keyring` service do
-not appear in keynest. This is an implementation boundary, not a security sandbox: another process running with your
-user's authority may be able to inspect credentials your user can access.
+The macOS and Linux implementations request attributes without requesting secret data. Windows' `CredEnumerate` API
+returns native credential structures that may include credential blobs; keynest ignores those fields immediately and
+retains only `TargetName` and `UserName`. The stronger claim that Windows enumeration never places a value in keynest's
+process memory would therefore be inaccurate.
 
-The same practical rule applies on macOS and Linux: keynest addresses its own known entries and does not import or
-inventory unrelated entries from the native store.
+When enumeration succeeds, the native store is authoritative for which keynest maps exist. keynest filters entries
+to the `DeveloperSecretWorkbench` service and parses their usernames as map paths. In the GUI, the optional
+**Show all OS credentials (names only)** view also displays identifiers belonging to other services. Those entries
+are read-only: keynest does not retrieve, reveal, import, edit, or delete their values. It can generate example code
+that performs an explicit lookup if the user chooses to do that separately.
+
+Enumeration is backend-specific, not guaranteed merely because the platform is supported. KWallet and unknown or
+headless keyring implementations currently fall back to the local index and cannot populate the GUI's other-
+credentials view. An enumeration error also degrades to the index.
+
+Identifier-only discovery reduces unnecessary secret reads, but it is not a security sandbox. Credential names can
+be sensitive metadata, and another process running with your user's authority may be able to retrieve values the OS
+allows that user to access.
 
 ### The non-secret local index
 
-Native keyring APIs do not provide keynest with one portable way to list its maps. keynest therefore maintains:
+Native keyring APIs do not provide one portable way to list maps, and even enumerable stores do not hold keynest's
+extra metadata. keynest therefore maintains:
 
 ```text
 ~/.devsecrets/index.json
@@ -71,10 +85,13 @@ Native keyring APIs do not provide keynest with one portable way to list its map
 Set `DEVSECRETS_HOME` to relocate the `.devsecrets` data directory. The index contains map names, folders, key names,
 descriptions, tags, non-secret designations, and timestamps, but never values.
 
-The OS credential store is the source of truth for values; the index is the source for listing and local metadata.
-If the index is deleted, the credentials are not automatically deleted, but keynest no longer knows which paths to
-list. There is currently no automatic index reconstruction or credential discovery. Saving a map again at the exact
-path re-creates its index entry but overwrites that map's stored payload.
+The OS credential store is always the source of truth for values. On enumerable backends it is also the source of
+truth for map existence; the index supplies descriptions, tags, key names, non-secret flags, and timestamps. On
+non-enumerable backends, the index is additionally the listing source.
+
+If the index is deleted, credentials remain in the OS store. Supported enumerable backends can still rediscover map
+paths, but lost descriptions, tags, non-secret flags, and timestamps are not reconstructed. Non-enumerable backends
+cannot list the orphaned entries. Saving a rediscovered map creates fresh index metadata.
 
 `keynest backup-index` copies this metadata file beside the original with a UTC timestamp. It is not a secret backup
 and cannot restore values.
@@ -100,7 +117,7 @@ setup.
 | Capability | OS keyring | AWS Secrets Manager |
 | --- | --- | --- |
 | Values | Native credential entry containing JSON | AWS `SecretString` containing JSON |
-| Listing | Local non-secret index | AWS list filtered by tag and name |
+| Listing | Native enumeration when supported; otherwise local index | AWS list filtered by tag and name |
 | Description, user tags, non-secret flags | Stored in local index | Not currently persisted |
 | Created/updated timestamps used by keynest | Local index | Not loaded into the map |
 | Delete | Immediate keyring delete | Scheduled with seven-day recovery |

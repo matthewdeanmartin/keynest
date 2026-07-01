@@ -13,6 +13,7 @@ does not create a security boundary against code already running with your user 
 - Injects values only into the selected child environment for `run`, without creating a file.
 - Requires an explicit acknowledgement before `.env` export.
 - Records selected activity without recording values.
+- Retains and displays only credential identifiers when discovering native-store entries.
 
 ## What keynest does not protect against
 
@@ -24,9 +25,12 @@ does not create a security boundary against code already running with your user 
   consumer application.
 - Loss of the native credential store. The local index backup contains no values.
 
-Windows Credential Manager may be able to protect stored credential blobs at rest for the signed-in user, but keynest
-does not gain exclusive ownership of them. keynest itself avoids enumeration and exact-lookups only its own service;
-that behavior should not be mistaken for an OS access-control guarantee. See [Concepts and storage](concepts.md#why-keynest-cannot-see-your-other-windows-credentials).
+Native credential stores may protect stored blobs at rest for the signed-in user, but keynest does not gain exclusive
+ownership of them. On supported backends it can enumerate service and username attributes for both keynest and
+non-keynest entries; the optional GUI view exposes those names read-only. macOS and Linux enumeration avoids
+requesting secret data. Windows `CredEnumerate` may return credential blobs in its native result even though keynest
+ignores them and retains only names. This behavior should not be mistaken for an OS access-control guarantee. See
+[credential discovery](concepts.md#credential-discovery).
 
 ## Local files
 
@@ -36,6 +40,11 @@ them with normal user-account permissions and avoid committing the directory. `D
 
 The application does not currently enforce or repair restrictive permissions on these files. Index backup makes
 another metadata copy beside the original.
+
+A repository may contain a committed `.keynest` marker with a folder and optional default map. keynest accepts no
+secret fields: a marker with any other key is invalid and ignored during automatic detection. The accepted routing
+names are still visible to anyone who can read the repository. Git remote identity used for automatic defaults is
+read from `.git/config`; embedded HTTPS credentials are scrubbed before diagnostics display the URL.
 
 ## Safer operating habits
 

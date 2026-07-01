@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import tkinter as tk
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from tkinter import ttk
 
 
 class ActionsPanel(ttk.Frame):
     """A vertical stack of action buttons for the selected secret map."""
 
-    def __init__(self, parent: tk.Misc, actions: dict[str, Callable[[], None]]) -> None:
+    def __init__(self, parent: tk.Misc, actions: Mapping[str, Callable[[], None]]) -> None:
         """Create the panel from an ordered ``label -> callback`` mapping."""
         super().__init__(parent, padding=8)
         ttk.Label(self, text="Actions", font=("", 11, "bold")).pack(anchor="w", pady=(0, 6))

@@ -13,6 +13,9 @@ keynest set my-app/dev API_TOKEN value --aws --profile personal --region us-east
 Backend selection is not stored globally. Supply the AWS options on each CLI invocation. The GUI currently creates
 its AWS backend without profile or region controls, so it relies on boto3's default chain and resolved region.
 
+Repository-aware path resolution applies in AWS mode too: inside a detected checkout, a bare map name uses the
+repository folder. Use an explicit `folder/name` or `--no-repo` when that is not desired.
+
 ## Naming and discovery
 
 Each map is one JSON `SecretString` named `devsecrets/folder/name`. keynest adds these tags:

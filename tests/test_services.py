@@ -84,6 +84,30 @@ def test_codegen_aws_secret_id():
     assert "devsecrets/my-app/dev" in boto.code
 
 
+def test_raw_snippets_use_service_and_username_no_json():
+    from keynest.model import RawCredential
+
+    cred = RawCredential("git:https://github.com", "alice")
+    snippets = codegen.raw_snippets(cred)
+    py = next(s for s in snippets if s.language == "python")
+    # Calls keyring.get_password with the raw identifiers, never JSON-parses.
+    assert "keyring.get_password" in py.code
+    assert "'git:https://github.com'" in py.code
+    assert "'alice'" in py.code
+    assert "json.loads" not in py.code
+    # And never references keynest at runtime, like all snippets.
+    assert "import keynest" not in py.code
+
+
+def test_raw_snippets_handle_missing_username():
+    from keynest.model import RawCredential
+
+    snippets = codegen.raw_snippets(RawCredential("AWS", None))
+    py = next(s for s in snippets if s.language == "python")
+    assert "''" in py.code  # empty-string username, not "None"
+    assert "None" not in py.code.split("get_password")[1].split(")")[0]
+
+
 # -- aws policy --------------------------------------------------------------
 
 

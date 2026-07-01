@@ -161,6 +161,23 @@ disable_error_code = ["union-attr", "var-annotated"]
 module = ["boto3", "boto3.*", "botocore", "botocore.*"]
 ignore_missing_imports = true
 
+# The keyring enumeration module talks to platform-native credential stores via
+# untyped third-party modules (pywin32's win32cred, GObject's gi.repository) and
+# keyring's own untyped private macOS ``api`` bindings. These are only importable
+# on their respective platforms and ship no stubs.
+[[tool.mypy.overrides]]
+module = [
+    "win32cred",
+    "win32ctypes.*",
+    "gi.*",
+    "keyring.backends.macOS.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "keynest.backends.keyring_enumerate"
+disallow_untyped_calls = false
+
 # The Tkinter UI layer is thin glue against imperfect stdlib tk stubs
 # (e.g. Listbox.curselection is untyped, Toplevel.transient overloads are
 # narrow). Relax the strict checks that only those stub gaps trip.

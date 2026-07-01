@@ -19,8 +19,10 @@ from typing import TYPE_CHECKING, Any
 from keynest.backends.base import BackendStatus, SecretMapExists, SecretMapNotFound
 from keynest.model import BackendId, SecretMap, SecretMapRef, normalize_folder
 
+# boto3 clients are fully dynamically typed; BaseClient only exposes generic
+# meta-methods. We accept Any to avoid suppressing every call site individually.
 if TYPE_CHECKING:  # pragma: no cover - typing only
-    from botocore.client import BaseClient
+    pass  # no botocore import needed now
 
 PREFIX = "devsecrets"
 MANAGED_BY = "DeveloperSecretWorkbench"
@@ -49,7 +51,7 @@ class AwsSecretsManagerBackend:
         self,
         profile: str | None = None,
         region: str | None = None,
-        client: BaseClient | None = None,
+        client: Any | None = None,
     ) -> None:
         """Create the backend, optionally with an explicit boto3 client.
 
@@ -60,10 +62,10 @@ class AwsSecretsManagerBackend:
         """
         self.profile = profile
         self.region = region
-        self._client = client
+        self._client: Any = client
 
     @property
-    def client(self) -> BaseClient:
+    def client(self) -> Any:
         """Return (lazily creating) the boto3 Secrets Manager client."""
         if self._client is None:
             import boto3  # imported lazily; AWS is optional

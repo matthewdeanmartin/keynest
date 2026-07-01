@@ -16,11 +16,21 @@ Options common to subcommands are written after the command, for example:
 keynest list --aws --profile personal --region us-east-1
 ```
 
-## Paths and exit status
+For `run`, put common options before the map path because everything after the path is treated as the child command:
 
-Use `folder/name` or `/folder/name`; a bare `name` uses the `default` folder. Successful commands normally return 0.
-A missing map or key and a refused unsafe export return 2. Backend or input errors generally return 1. `lint` returns
-1 when it finds issues, and `run` returns the child process's exit code.
+```console
+keynest run --aws --profile personal --region us-east-1 my-app/dev -- python app.py
+```
+
+## Paths, repositories, and exit status
+
+Use `folder/name` or `/folder/name`. An explicit path always means exactly what it says. Inside a detected Git
+repository, a bare `name` uses the repository's inferred or configured folder; elsewhere it uses `default`. Pass
+`--no-repo` after the subcommand, or set `KEYNEST_NO_REPO`, to restore `/default` behavior in a repository. See
+[repository-aware defaults](../repositories.md) for inference and the `.keynest` marker.
+
+Successful commands normally return 0. A missing map or key and a refused unsafe export return 2. Backend or input
+errors generally return 1. `lint` returns 1 when it finds issues, and `run` returns the child process's exit code.
 
 ## Everyday commands
 
@@ -34,8 +44,9 @@ keynest list --folder my-app
 keynest list --aws --profile personal --region us-east-1
 ```
 
-OS-keyring listing comes from the [non-secret index](../concepts.md#the-non-secret-local-index). AWS listing includes
-only keynest-tagged secrets whose names match its convention.
+On supported native keyrings, OS listing discovers keynest-managed entries from the store. Otherwise it falls back to
+the [non-secret index](../concepts.md#the-non-secret-local-index). AWS listing includes only keynest-tagged secrets
+whose names match its convention.
 
 ### `set`
 
@@ -235,10 +246,23 @@ keynest aws-setup --yes --allow-delete
 `--yes` skips only the prompt; it does not skip the AWS writes. `--allow-delete` adds delete/restore permissions to the
 generated policy. See the [AWS guide](../aws.md) before running the wizard.
 
+## Repository marker
+
+`init-repo` writes a secret-free `.keynest` TOML file at the detected repository root:
+
+```console
+keynest init-repo
+keynest init-repo --folder acme.payments --default-map dev
+keynest init-repo --folder replacement --force
+```
+
+Without `--folder`, the current inferred folder is recorded. The command refuses to overwrite an existing marker
+without `--force`; it returns 2 outside a Git repository. See [repository-aware defaults](../repositories.md).
+
 ## Dry runs
 
-`--dry-run` is useful on the mutating `set`, `run`, `import-env`, `export-env`, `duplicate`, and `backup-index`
-commands. It describes the skipped action; for `get`, it suppresses the audit event but still prints the requested
+`--dry-run` is useful on the mutating `set`, `run`, `import-env`, `export-env`, `duplicate`, `backup-index`, and
+`init-repo` commands. It describes the skipped action; for `get`, it suppresses the audit event but still prints the requested
 value. Read-only commands may accept the common flag without changing their behavior. In particular, do not assume
 that `aws-setup --dry-run` is safe: the setup wizard currently ignores that flag and performs its documented test
 secret lifecycle after confirmation.

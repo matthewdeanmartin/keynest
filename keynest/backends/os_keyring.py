@@ -7,18 +7,24 @@ Secret maps are stored as JSON payloads in the OS credential store via the
     username     = "/folder/name"
     password     = json.dumps(values)
 
-Because OS keyrings cannot enumerate entries portably, enumeration is served
-from a non-secret :class:`~keynest.services.index_store.IndexStore`.
+Where the active keyring backend supports enumeration (see
+:mod:`keynest.backends.keyring_enumerate`), the keyring itself is the source of
+truth for *which* maps exist. A non-secret
+:class:`~keynest.services.index_store.IndexStore` supplies the metadata the
+keyring cannot recover (descriptions, tags, key names, timestamps) and serves
+listing on backends that cannot enumerate.
 """
 
 from __future__ import annotations
 
 import contextlib
 import json
+import logging
 
 import keyring
 from keyring.errors import KeyringError
 
+from keynest.backends import keyring_enumerate
 from keynest.backends.base import (
     BackendStatus,
     SecretMapExists,
@@ -27,13 +33,17 @@ from keynest.backends.base import (
 from keynest.model import (
     SERVICE_NAME_HINT,
     BackendId,
+    RawCredential,
     SecretMap,
     SecretMapRef,
     logical_path,
     normalize_folder,
     now_iso,
+    parse_path,
 )
 from keynest.services.index_store import IndexStore
+
+log = logging.getLogger(__name__)
 
 SERVICE_NAME = SERVICE_NAME_HINT
 
@@ -56,23 +66,89 @@ class OsKeyringBackend:
     def _read_payload(self, folder: str, name: str) -> str | None:
         return keyring.get_password(SERVICE_NAME, self._username(folder, name))
 
+    def _enumerate_refs(self) -> list[SecretMapRef] | None:
+        """Return the maps that actually exist in the keyring, or ``None``.
+
+        The active keyring backend is the source of truth for *existence*: we
+        enumerate its credentials, keep those stored under our service name, and
+        parse each ``/folder/name`` username back into a reference. Returns
+        ``None`` if the backend cannot enumerate, so callers can fall back to
+        the index.
+        """
+        try:
+            creds = list(keyring_enumerate.list_credentials(keyring.get_keyring()))
+        except keyring_enumerate.EnumerationNotSupported:
+            return None
+        except Exception:  # pylint: disable=broad-exception-caught
+            log.exception("Keyring enumeration failed; falling back to index.")
+            return None
+
+        refs: list[SecretMapRef] = []
+        for cred in creds:
+            if cred.service != SERVICE_NAME or not cred.username:
+                continue
+            try:
+                folder, name = parse_path(cred.username)
+            except ValueError:
+                continue
+            refs.append(SecretMapRef(self.backend_id, folder, name))
+        return refs
+
+    def list_raw_credentials(self) -> list[RawCredential]:
+        """Return all OS credentials *not* managed by keynest (names only).
+
+        This surfaces entries created by other apps (git, AWS CLI, etc.) so a UI
+        can show the full credential store read-only. Only ``(service, username)``
+        is read; secret values are never fetched or decrypted. keynest's own
+        maps are excluded (they are served by :meth:`list_secret_maps`).
+
+        Returns an empty list when the active backend cannot be enumerated.
+        """
+        try:
+            creds = list(keyring_enumerate.list_credentials(keyring.get_keyring()))
+        except keyring_enumerate.EnumerationNotSupported:
+            return []
+        except Exception:  # pylint: disable=broad-exception-caught
+            log.exception("Keyring enumeration failed; cannot list raw credentials.")
+            return []
+
+        raw = [
+            RawCredential(service=cred.service, username=cred.username or None)
+            for cred in creds
+            if cred.service and cred.service != SERVICE_NAME
+        ]
+        return sorted(raw, key=lambda c: (c.service, c.username or ""))
+
     # -- SecretBackend protocol ----------------------------------------------
 
     def list_folders(self) -> list[str]:
         """Return all known folder names, always including ``default``."""
-        return self.index.folders()
+        folders = {ref.folder for ref in self.list_secret_maps()}
+        folders.add("default")
+        # Preserve index-only folders (e.g. empty folders the index records).
+        folders.update(self.index.folders())
+        return sorted(folders)
 
     def list_secret_maps(self, folder: str | None = None) -> list[SecretMapRef]:
-        """Return references for stored maps, optionally filtered by folder."""
+        """Return references for stored maps, optionally filtered by folder.
+
+        When the keyring can be enumerated, its contents are authoritative for
+        which maps exist; otherwise listing falls back to the local index.
+        """
         wanted = normalize_folder(folder) if folder else None
-        refs: list[SecretMapRef] = []
-        for item in self.index.items():
-            if item.backend != self.backend_id:
-                continue
-            if wanted is not None and item.folder != wanted:
-                continue
-            refs.append(SecretMapRef(self.backend_id, item.folder, item.name))
-        return sorted(refs, key=lambda r: (r.folder, r.name))
+
+        enumerated = self._enumerate_refs()
+        if enumerated is not None:
+            refs = enumerated
+        else:
+            refs = [
+                SecretMapRef(self.backend_id, item.folder, item.name)
+                for item in self.index.items()
+                if item.backend == self.backend_id
+            ]
+
+        result = [r for r in refs if wanted is None or r.folder == wanted]
+        return sorted(result, key=lambda r: (r.folder, r.name))
 
     def get_secret_map(self, folder: str, name: str) -> SecretMap:
         """Load a secret map, merging values from the keyring with index metadata."""

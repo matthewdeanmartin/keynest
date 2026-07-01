@@ -19,6 +19,7 @@ receives the values in its environment and must be trusted.
 - Follow the [quick start](usage/quickstart.md) to create and use a secret map.
 - Use the [CLI reference](usage/cli.md) for every command and option.
 - Read [concepts and storage](concepts.md) to understand secret maps, paths, the local index, and both backends.
+- Learn how [repository-aware defaults](repositories.md) give bare map names a project-specific folder.
 - Read the [GUI guide](usage/gui.md) for the three-panel desktop application.
 - Configure the [AWS Secrets Manager backend](aws.md) when local OS storage is not enough.
 - Review the [security model and limitations](security.md) before relying on keynest for sensitive work.
@@ -32,6 +33,8 @@ keynest can currently:
 - inject a map into a child process, inspect one value, and import or export `.env` data from the CLI;
 - generate Python, shell, Node/TypeScript, Java, Docker, Docker Compose, and manual-use examples;
 - compare and lint maps, produce redacted JSON, identify stale local-index entries, and show non-secret recent activity;
+- discover keynest maps from supported native stores and optionally show other credentials' names read-only;
+- detect the current Git repository, infer its default folder, and write a secret-free `.keynest` marker;
 - diagnose the active keyring and back up the non-secret local index; and
 - generate an AWS IAM policy and exercise AWS setup with a test-secret lifecycle.
 

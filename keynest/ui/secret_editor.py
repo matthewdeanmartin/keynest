@@ -33,6 +33,9 @@ class SecretEditor(ttk.Frame):
         self._on_copy_value = on_copy_value
         self._map: SecretMap | None = None
         self._revealed: set[str] = set()
+        # When True, the panel shows a non-keynest (read-only) view: mutation
+        # actions are inert and nothing is persisted.
+        self._readonly = False
 
         header = ttk.Frame(self)
         header.pack(fill="x")
@@ -81,6 +84,7 @@ class SecretEditor(ttk.Frame):
     def load(self, secret_map: SecretMap | None) -> None:
         """Display ``secret_map`` (or clear the panel when ``None``)."""
         self._map = secret_map
+        self._readonly = False
         self._revealed.clear()
         if secret_map is None:
             self._title.configure(text="(no secret map selected)")
@@ -94,6 +98,36 @@ class SecretEditor(ttk.Frame):
         self._desc_var.set(secret_map.description)
         self._tags_var.set(", ".join(secret_map.tags))
         self._refresh_rows()
+
+    def load_readonly(
+        self,
+        title: str,
+        backend_label: str,
+        description: str,
+        value_rows: list[tuple[str, str]] | None = None,
+    ) -> None:
+        """Display a read-only, non-keynest view (e.g. a raw OS credential).
+
+        Mutation actions (Add/Edit/Rename/Delete/Generate/Save) become inert and
+        nothing is persisted. ``value_rows`` are shown verbatim as ``(key,
+        shown)`` pairs and are never masked or fetched on the panel's behalf.
+
+        Args:
+            title: Heading text (e.g. the credential's service).
+            backend_label: Right-aligned label (e.g. ``"os-keyring (read-only)"``).
+            description: Free text shown in the description field.
+            value_rows: Optional ``(label, shown_value)`` rows to display.
+        """
+        self._map = None
+        self._readonly = True
+        self._revealed.clear()
+        self._title.configure(text=title)
+        self._backend_label.configure(text=backend_label)
+        self._desc_var.set(description)
+        self._tags_var.set("")
+        self._tree.delete(*self._tree.get_children())
+        for key, shown in value_rows or []:
+            self._tree.insert("", "end", iid=key, values=(key, shown, "opaque"))
 
     # -- internals -----------------------------------------------------------
 
@@ -112,6 +146,13 @@ class SecretEditor(ttk.Frame):
         return selection[0] if selection else None
 
     def _require_map(self) -> SecretMap | None:
+        if self._readonly:
+            messagebox.showinfo(
+                "Read-only",
+                "This is a non-keynest OS credential. keynest can show its "
+                "identifiers and generate access code, but cannot edit it.",
+            )
+            return None
         if self._map is None:
             messagebox.showinfo("No selection", "Select or create a secret map first.")
         return self._map

@@ -23,6 +23,33 @@ def test_diagnostics_reports_index_item_count(mem_keyring, devsecrets_home):
     assert diag.index_item_count == 1
 
 
+def test_diagnostics_reports_detected_repo(mem_keyring, devsecrets_home, monkeypatch, tmp_path):
+    from keynest.services import repo_context
+
+    ctx = repo_context.RepoContext(
+        root=tmp_path,
+        host="github.com",
+        owner="acme",
+        repo="acme-api",
+        remote_url="https://github.com/acme/acme-api.git",
+        source="remote",
+    )
+    monkeypatch.setattr("keynest.services.repo_context.detect", lambda: ctx)
+    diag = diagnostics.collect(index=IndexStore())
+    assert diag.repo_detected
+    assert diag.repo_default_folder == "acme.acme-api"
+    joined = "\n".join(diag.as_lines())
+    assert "acme/acme-api" in joined
+    assert "/acme.acme-api" in joined
+
+
+def test_diagnostics_reports_no_repo(mem_keyring, devsecrets_home, monkeypatch):
+    monkeypatch.setattr("keynest.services.repo_context.detect", lambda: None)
+    diag = diagnostics.collect(index=IndexStore())
+    assert not diag.repo_detected
+    assert "repo: none detected" in "\n".join(diag.as_lines())
+
+
 def test_backup_returns_none_without_index(devsecrets_home):
     assert IndexStore().backup() is None
 

@@ -65,4 +65,6 @@ run `keynest-gui`.
 
 On Linux, Tkinter and the desktop credential service are often distribution packages rather than Python packages.
 Install your distribution's Tk support and use a logged-in Secret Service or KWallet session. Headless installations
-may have no usable native keyring.
+may have no usable native keyring. Credential-name enumeration is currently implemented for Secret Service and
+libsecret, but not KWallet; storage still works with a usable KWallet backend and listing falls back to keynest's
+local index.

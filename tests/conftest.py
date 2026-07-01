@@ -10,7 +10,12 @@ from keyring.backend import KeyringBackend
 
 
 class MemoryKeyring(KeyringBackend):
-    """A keyring backend that stores credentials in a process-local dict."""
+    """A keyring backend that stores credentials in a process-local dict.
+
+    It is registered as enumerable (see :data:`_MEMORY_QUALNAME` below) so that
+    code relying on :mod:`keynest.backends.keyring_enumerate` exercises the real
+    enumeration path in tests.
+    """
 
     priority = 1
 
@@ -36,16 +41,29 @@ class MemoryKeyring(KeyringBackend):
         del self._store[(service, username)]
 
 
+def _enumerate_memory(backend: MemoryKeyring):
+    """Enumerate a :class:`MemoryKeyring`'s ``(service, username)`` keys."""
+    from keynest.backends.keyring_enumerate import Credential
+
+    for service, username in backend._store:
+        yield Credential(service, username)
+
+
 @pytest.fixture
 def mem_keyring() -> Iterator[MemoryKeyring]:
-    """Install a fresh in-memory keyring for the duration of a test."""
+    """Install a fresh, enumerable in-memory keyring for one test."""
+    from keynest.backends import keyring_enumerate
+
     previous = keyring.get_keyring()
     backend = MemoryKeyring()
     keyring.set_keyring(backend)
+    qualname = keyring_enumerate._qualname(backend)
+    keyring_enumerate._ENUMERATORS[qualname] = _enumerate_memory
     try:
         yield backend
     finally:
         keyring.set_keyring(previous)
+        keyring_enumerate._ENUMERATORS.pop(qualname, None)
 
 
 @pytest.fixture

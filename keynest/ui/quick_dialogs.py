@@ -9,6 +9,7 @@ from tkinter import messagebox, ttk
 from keynest.backends.base import BackendError, SecretBackend
 from keynest.model import BackendId, SecretMapRef
 from keynest.services import quick, value_tools
+from keynest.ui.geometry import center_window
 
 
 class QuickAddPasswordDialog(tk.Toplevel):
@@ -24,6 +25,7 @@ class QuickAddPasswordDialog(tk.Toplevel):
         backend: SecretBackend,
         backend_id: BackendId,
         on_saved: Callable[[SecretMapRef], None],
+        folder: str = "default",
     ) -> None:
         """Build the dialog.
 
@@ -32,14 +34,16 @@ class QuickAddPasswordDialog(tk.Toplevel):
             backend: Backend to persist into.
             backend_id: Backend id for the created map.
             on_saved: Called with the new map's ref after a successful save.
+            folder: Destination folder for the created map (default ``default``).
         """
         super().__init__(parent)
         self.title("Quick add password")
-        self.geometry("420x190")
-        self.transient(parent)  # type: ignore[call-overload]  # tk stub is over-narrow
+        center_window(self, 420, 190)
+        self.transient(parent)  # type: ignore[call-overload]  # ty: ignore[no-matching-overload]
         self._backend = backend
         self._backend_id = backend_id
         self._on_saved = on_saved
+        self._folder = folder
 
         body = ttk.Frame(self, padding=12)
         body.pack(fill="both", expand=True)
@@ -56,7 +60,7 @@ class QuickAddPasswordDialog(tk.Toplevel):
 
         ttk.Label(
             body,
-            text="Saved as /default/<name> with a single key (VALUE).",
+            text=f"Saved as /{self._folder}/<name> with a single key (VALUE).",
             foreground="#555",
         ).grid(row=2, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
@@ -80,7 +84,11 @@ class QuickAddPasswordDialog(tk.Toplevel):
             return
         try:
             secret_map = quick.quick_create_password(
-                self._backend, name, self._value_var.get(), backend_id=self._backend_id
+                self._backend,
+                name,
+                self._value_var.get(),
+                backend_id=self._backend_id,
+                folder=self._folder,
             )
         except (BackendError, ValueError) as exc:
             messagebox.showerror("Quick add failed", str(exc))
@@ -111,8 +119,8 @@ class PasteEnvDialog(tk.Toplevel):
         """
         super().__init__(parent)
         self.title("Paste .env")
-        self.geometry("560x460")
-        self.transient(parent)  # type: ignore[call-overload]  # tk stub is over-narrow
+        center_window(self, 560, 460)
+        self.transient(parent)  # type: ignore[call-overload]  # ty: ignore[no-matching-overload]
         self._backend = backend
         self._backend_id = backend_id
         self._on_saved = on_saved

@@ -19,6 +19,7 @@ nav:
   - Overview:
       - Project overview: overview/README.md
       - Concepts and storage: concepts.md
+      - Repository-aware defaults: repositories.md
       - Security model: security.md
   - Installation: installation.md
   - Usage:

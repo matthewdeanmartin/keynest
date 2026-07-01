@@ -44,6 +44,8 @@ def _folder_panel(tk_root, selected):
         on_delete_map=lambda ref: selected.append(("delete", ref)),
         on_rename_map=lambda ref: selected.append(("rename", ref)),
         on_duplicate_map=lambda ref: selected.append(("duplicate", ref)),
+        on_select_raw=lambda cred: selected.append(("raw", cred)),
+        on_show_all_change=lambda show: selected.append(("show_all", show)),
     )
 
 
@@ -85,6 +87,55 @@ def test_folder_panel_all_backends_is_none(tk_root):
     panel = _folder_panel(tk_root, [])
     panel._backend_var.set("All")
     assert panel.active_backend_id() is None
+
+
+def test_folder_panel_shows_raw_credentials_under_synthetic_folder(tk_root):
+    from keynest.model import RawCredential
+    from keynest.ui.folder_panel import RAW_FOLDER, RAW_MARKER
+
+    events = []
+    panel = _folder_panel(tk_root, events)
+    refs = [SecretMapRef("os-keyring", "app", "dev")]
+    raw = [RawCredential("git:https://github.com", "alice")]
+    panel.set_data(["app", "default"], refs, raw)
+
+    assert RAW_FOLDER in list(panel._folders.get(0, "end"))
+    # Select the synthetic folder; its rows are the raw creds, marked.
+    folders = list(panel._folders.get(0, "end"))
+    panel._folders.selection_clear(0, "end")
+    panel._folders.selection_set(folders.index(RAW_FOLDER))
+    panel._refresh_maps()
+    assert list(panel._maps.get(0, "end")) == [f"{RAW_MARKER}git:https://github.com — alice"]
+
+
+def test_folder_panel_selecting_raw_calls_raw_callback_not_select(tk_root):
+    from keynest.model import RawCredential
+    from keynest.ui.folder_panel import RAW_FOLDER
+
+    events = []
+    panel = _folder_panel(tk_root, events)
+    cred = RawCredential("git", "alice")
+    panel.set_data(["default"], [], [cred])
+    folders = list(panel._folders.get(0, "end"))
+    panel._folders.selection_clear(0, "end")
+    panel._folders.selection_set(folders.index(RAW_FOLDER))
+    panel._refresh_maps()
+    panel._maps.selection_set(0)
+    panel._map_selected()
+
+    assert ("raw", cred) in events
+    assert not any(kind == "select" for kind, _ in events)
+    # A raw row is read-only: not returned as an editable ref.
+    assert panel.selected_ref() is None
+
+
+def test_folder_panel_show_all_toggle_fires_callback(tk_root):
+    events = []
+    panel = _folder_panel(tk_root, events)
+    panel._show_all_var.set(True)
+    panel._show_all_changed()
+    assert ("show_all", True) in events
+    assert panel.show_all() is True
 
 
 # -- SecretEditor ------------------------------------------------------------
@@ -225,6 +276,45 @@ def test_editor_delete_key(tk_root, monkeypatch):
     assert sm.values == {"B": "w"}
 
 
+def test_editor_readonly_shows_metadata_and_rows(tk_root):
+    editor = _editor(tk_root)
+    editor.load_readonly(
+        title="git:https://github.com",
+        backend_label="os-keyring (read-only)",
+        description="Non-keynest OS credential. Username: alice",
+        value_rows=[("value", "(opaque)")],
+    )
+    assert editor._title.cget("text") == "git:https://github.com"
+    assert "read-only" in editor._backend_label.cget("text")
+    assert editor._tree.item("value", "values")[1] == "(opaque)"
+    assert editor._tree.item("value", "values")[2] == "opaque"
+
+
+def test_editor_readonly_blocks_mutation(tk_root, monkeypatch):
+    editor = _editor(tk_root)
+    editor.load_readonly("svc", "os-keyring (read-only)", "desc")
+    infos = []
+    monkeypatch.setattr(
+        "keynest.ui.secret_editor.messagebox.showinfo",
+        lambda title, msg, *a, **k: infos.append(title),
+    )
+    # Save must not call on_save; mutation must surface the read-only notice.
+    saved = []
+    editor._on_save = saved.append
+    editor._save()
+    editor._add_key()
+    assert not saved
+    assert infos and all(t == "Read-only" for t in infos)
+
+
+def test_editor_load_clears_readonly(tk_root):
+    editor = _editor(tk_root)
+    editor.load_readonly("svc", "b", "d")
+    assert editor._readonly
+    editor.load(SecretMap(backend="os-keyring", folder="f", name="m", values={"A": "v"}))
+    assert not editor._readonly
+
+
 # -- dialogs -----------------------------------------------------------------
 
 
@@ -235,7 +325,20 @@ def test_text_dialog_shows_content(tk_root):
     dialog = TextDialog(tk_root, "Title", "hello world")
     text_widgets = [w for w in dialog.winfo_children() if w.winfo_class() == "Text"]
     assert text_widgets
-    assert "hello world" in cast(tk.Text, text_widgets[0]).get("1.0", "end")
+    text = cast(tk.Text, text_widgets[0])
+    assert "hello world" in text.get("1.0", "end")
+    # Prose wraps at word boundaries by default.
+    assert text.cget("wrap") == "word"
+    dialog.destroy()
+
+
+def test_text_dialog_no_wrap_for_code(tk_root):
+    import tkinter as tk
+    from typing import cast
+
+    dialog = TextDialog(tk_root, "Code", "x = 1", wrap=False)
+    text = next(cast(tk.Text, w) for w in dialog.winfo_children() if w.winfo_class() == "Text")
+    assert text.cget("wrap") == "none"
     dialog.destroy()
 
 

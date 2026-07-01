@@ -1,56 +1,92 @@
 # keynest
 
-Developer keystore that is pipx-installable and supports the OS keychain / credential
-manager and AWS Secrets Manager — with both a CLI and a Tkinter GUI.
+Why? Because you're going to leak your .env files to git someday.
 
-keynest is a **developer secret workbench**. It helps a single developer stop scattering
-secrets across Notepad, stray `.env` files, shell history, and repo-adjacent config. It
-manages *secret maps* (JSON dictionaries of keys to values) in either the laptop OS secret
-store (via Python [`keyring`](https://pypi.org/project/keyring/)) or
-[AWS Secrets Manager](https://aws.amazon.com/secrets-manager/) (via `boto3`).
+keynest is a local-first secret workbench for individual developers. It keeps named maps (json files) of configuration
+in your operating system's credential store or AWS Secrets Manager and makes the safest common operation the shortest one:
 
-The guiding opinion: **make the safe path the easy path.** Instead of
-
-```bash
-export DATABASE_PASSWORD=...
+```console
+keynest run dev -- python app.py
 ```
 
-prefer
+The values are added only to that child process's environment. Your current shell is unchanged and keynest does not
+create a plaintext `.env` file.
 
-```bash
-keynest run my-app -- python app.py
-```
+keynest is useful when you:
 
-See [spec/spec.md](spec/spec.md) for the full product specification.
+- switch among several projects or environments and want each one's values grouped together;
+- want a lightweight GUI for entering, masking, copying, and organizing development credentials;
+- need the same CLI workflow with either a laptop keychain or AWS Secrets Manager;
+- inherited a `.env` file and want to import it, then stop keeping the working copy in the repository; or
+- want repo-aware defaults so `keynest run dev -- ...` finds the right map after you move or clone a checkout.
 
-## Prior Art
+## How it compares
 
-[aws-vault](https://github.com/ByteNess/aws-vault) is the best prior art and is recommended
-over this tool for the moment. The main advantage of keynest will be that it is pure Python
-and ships a GUI. keynest also borrows patterns shamelessly from `chamber`, SOPS, KeePassXC,
-and the developer-docs-as-a-feature approach of Infisical / Doppler / 1Password.
+| Tool category            | Better fit when                                                                  | How keynest differs                                                                          |
+|--------------------------|----------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------|
+| `.env` files             | Portability and framework-native loading matter more than plaintext-at-rest risk | keynest avoids a working plaintext file and injects values at process launch                 |
+| Password managers        | You need browser autofill, personal records, sharing, or polished mobile apps    | keynest organizes flat environment-style maps and focuses on developer processes             |
+| Team secret platforms    | You need sharing, access policy, rotation, approvals, or centralized audit       | keynest is deliberately single-developer and has no server of its own                        |
+| Cloud-only secret stores | Production workloads already fetch secrets directly from a cloud provider        | keynest adds a local OS-keyring option, a GUI, and one workflow across local and AWS storage |
+
+keynest is alpha software. It reduces accidental exposure through files, commits, shell exports, and casual display;
+it is not a boundary against malware, a compromised user account, or an untrusted child process.
 
 ## Installation
 
-```bash
+Python 3.11 or newer is required. An isolated tool installation is recommended:
+
+```console
+uv tool install keynest
+# or
 pipx install keynest
 ```
 
-Or with pip:
+Plain pip also works:
 
-```bash
+```console
 pip install keynest
 ```
 
-## Usage
+The package installs `keynest` and `keynest-gui`. Linux users may also need their distribution's Tkinter package and
+a running Secret Service or KWallet session.
 
-```bash
-keynest --help
+## Quick start
+
+Check that the OS credential store works, then create a map:
+
+```console
+keynest health
+keynest set my-app/dev DATABASE_URL "postgresql://localhost/app"
+keynest set my-app/dev LOG_LEVEL info
+keynest run my-app/dev -- python app.py
 ```
 
-> Note: keynest is in early development. The CLI and GUI described in the
-> [spec](spec/spec.md) are not yet implemented — the package scaffold and quality gates
-> are in place first.
+Passing a real secret to `set` can leave it in shell history, so use `keynest-gui` for interactive entry. The GUI can
+also import pasted `.env` content, generate passwords, reveal or copy values temporarily, and manage maps.
+
+Inside a Git checkout, a bare map name defaults to a folder derived from the remote, such as
+`/acme.my-app/dev`. An explicit `folder/name` always wins:
+
+```console
+keynest set dev API_TOKEN value       # detected repo folder, if any
+keynest set default/dev API_TOKEN value
+keynest run dev -- npm run dev
+```
+
+Use `keynest init-repo` to create a secret-free `.keynest` marker with a stable folder choice, or pass `--no-repo` to
+disable repo-aware resolution for one command.
+
+AWS Secrets Manager is selected per command:
+
+```console
+keynest health --aws --profile personal --region us-east-1
+keynest run --aws --profile personal --region us-east-1 dev -- python app.py
+```
+
+Run `keynest --help` for all commands. The full documentation covers the [quick start](docs/usage/quickstart.md),
+[CLI](docs/usage/cli.md), [GUI](docs/usage/gui.md), [repository defaults](docs/repositories.md),
+[storage model](docs/concepts.md), [AWS backend](docs/aws.md), and [security limitations](docs/security.md).
 
 ## Contributing
 
@@ -64,45 +100,9 @@ MIT — see [LICENSE](LICENSE).
 
 See [CHANGELOG.md](CHANGELOG.md).
 
-## Current implementation
+## Prior Art
 
-The implementation has moved beyond the early scaffold note above: both the CLI and Tkinter GUI are available, with
-OS-keyring and AWS Secrets Manager backends. The specification remains useful as product history, while the
-[user documentation](docs/index.md) describes the behavior and limitations of the current code.
-
-The preferred installation is an isolated global tool environment:
-
-```bash
-uv tool install keynest
-```
-
-or:
-
-```bash
-pipx install keynest
-```
-
-The install provides `keynest` and `keynest-gui`. Start with:
-
-```bash
-keynest health
-keynest --help
-keynest-gui
-```
-
-The recommended usage path injects a map only into a child process:
-
-```bash
-keynest run my-app/dev -- python app.py
-```
-
-See the [documentation home](docs/index.md), [concepts and storage](docs/concepts.md), dedicated
-[CLI reference](docs/usage/cli.md), [GUI guide](docs/usage/gui.md), [AWS guide](docs/aws.md), and
-[security model](docs/security.md).
-
-On Windows, keynest does not enumerate Credential Manager. It uses Python `keyring` to request exact entries under
-its own `DeveloperSecretWorkbench` service and keeps a separate non-secret index for listing. Windows itself has a
-credential-enumeration API, but keynest does not call it; this is an implementation boundary, not protection from
-other software running as your user. Consequently, unrelated credentials stored by other applications do not appear
-in keynest. The [storage documentation](docs/concepts.md#why-keynest-cannot-see-your-other-windows-credentials) has the
-full explanation.
+[aws-vault](https://github.com/ByteNess/aws-vault) is the best prior art and is recommended
+over this tool for the moment. The main advantage of keynest will be that it is pure Python
+and ships a GUI. keynest also borrows patterns shamelessly from `chamber`, SOPS, KeePassXC,
+and the developer-docs-as-a-feature approach of Infisical / Doppler / 1Password.

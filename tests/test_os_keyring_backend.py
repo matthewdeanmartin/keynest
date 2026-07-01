@@ -74,3 +74,86 @@ def test_index_persists_across_instances(backend, devsecrets_home):
 def test_test_connection_ok(backend):
     status = backend.test_connection()
     assert status.ok
+
+
+# -- keyring-authoritative listing ------------------------------------------- #
+
+
+def test_listing_recovers_map_present_in_keyring_but_missing_from_index(backend, mem_keyring):
+    """A map written straight to the keyring shows up even with no index entry."""
+    import json
+
+    from keynest.model import SERVICE_NAME_HINT
+
+    mem_keyring.set_password(SERVICE_NAME_HINT, "/strays/found", json.dumps({"K": "v"}))
+    assert SecretMapRef("os-keyring", "strays", "found") in backend.list_secret_maps()
+
+
+def test_listing_omits_map_in_index_but_absent_from_keyring(backend, mem_keyring):
+    """If the keyring no longer holds a map, the index alone can't resurrect it."""
+    backend.put_secret_map(_map(folder="a", name="one"))
+    # Simulate drift: the credential vanishes from the keyring out-of-band.
+    from keynest.model import SERVICE_NAME_HINT
+
+    mem_keyring.delete_password(SERVICE_NAME_HINT, "/a/one")
+    assert backend.list_secret_maps() == []
+
+
+def test_listing_ignores_other_services(backend, mem_keyring):
+    """Credentials under unrelated service names are not treated as our maps."""
+    mem_keyring.set_password("SomeOtherApp", "/a/one", "x")
+    backend.put_secret_map(_map(folder="a", name="mine"))
+    assert backend.list_secret_maps() == [SecretMapRef("os-keyring", "a", "mine")]
+
+
+def test_listing_falls_back_to_index_when_not_enumerable(backend, mem_keyring, monkeypatch):
+    """When enumeration is unsupported, listing is served from the index."""
+    from keynest.backends import keyring_enumerate
+
+    def _raise(_backend):
+        raise keyring_enumerate.EnumerationNotSupported("nope")
+
+    monkeypatch.setattr(keyring_enumerate, "list_credentials", _raise)
+    backend.put_secret_map(_map(folder="a", name="one"))
+    assert backend.list_secret_maps() == [SecretMapRef("os-keyring", "a", "one")]
+
+
+# -- raw (non-keynest) credential listing ------------------------------------ #
+
+
+def test_list_raw_credentials_excludes_keynest_maps(backend, mem_keyring):
+    """Raw listing surfaces other apps' creds but not keynest's own maps."""
+    from keynest.model import RawCredential
+
+    backend.put_secret_map(_map(folder="a", name="mine"))  # under our service
+    mem_keyring.set_password("git:https://github.com", "alice", "tok")
+    # A credential with no username (write to the store directly to avoid
+    # keyring's empty-username deprecation warning).
+    mem_keyring._store[("AWS", "")] = "secret"
+
+    raw = backend.list_raw_credentials()
+
+    assert RawCredential("git:https://github.com", "alice") in raw
+    assert RawCredential("AWS", None) in raw
+    # keynest's own service name must never appear in the raw list.
+    assert all("DeveloperSecretWorkbench" not in c.service for c in raw)
+
+
+def test_list_raw_credentials_sorted(backend, mem_keyring):
+    from keynest.model import RawCredential
+
+    mem_keyring.set_password("zeta", "u", "v")
+    mem_keyring.set_password("alpha", "u", "v")
+    raw = backend.list_raw_credentials()
+    assert raw == [RawCredential("alpha", "u"), RawCredential("zeta", "u")]
+
+
+def test_list_raw_credentials_empty_when_not_enumerable(backend, mem_keyring, monkeypatch):
+    from keynest.backends import keyring_enumerate
+
+    def _raise(_backend):
+        raise keyring_enumerate.EnumerationNotSupported("nope")
+
+    monkeypatch.setattr(keyring_enumerate, "list_credentials", _raise)
+    mem_keyring.set_password("git", "u", "v")
+    assert backend.list_raw_credentials() == []

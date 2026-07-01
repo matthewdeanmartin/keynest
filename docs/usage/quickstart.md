@@ -16,6 +16,9 @@ keynest set my-app/dev LOG_LEVEL info
 keynest list
 ```
 
+If these commands run inside a Git checkout, bare names such as `dev` use a folder derived from the repository. The
+explicit `my-app/dev` path above is unchanged. See [repository-aware defaults](../repositories.md).
+
 `set` is convenient for a demonstration, but a real secret passed as an argument may remain in shell history. Use
 `keynest-gui` for interactive entry.
 

@@ -9,7 +9,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from keynest.model import SERVICE_NAME_HINT, SecretMap, logical_path
+from keynest.model import (
+    SERVICE_NAME_HINT,
+    RawCredential,
+    SecretMap,
+    logical_path,
+)
 
 # A representative key used in examples, falling back to a placeholder.
 _PLACEHOLDER_KEY = "DATABASE_URL"
@@ -196,6 +201,48 @@ def manual_checklist(secret_map: SecretMap) -> Snippet:
         "  Prefer `keynest run` or generated SDK code when the tool supports it."
     )
     return Snippet(title="Manual: copy checklist", language="text", code=code)
+
+
+# -- raw (non-keynest) OS credentials ----------------------------------------
+
+
+def raw_python_keyring(cred: RawCredential) -> Snippet:
+    """Generate raw ``keyring`` Python for a non-keynest OS credential.
+
+    Unlike keynest maps, this credential's value is opaque: keynest did not
+    write it, so there is no JSON structure to parse. The snippet returns the
+    raw string exactly as the owning application stored it.
+    """
+    user = cred.username or ""
+    code = (
+        "import keyring\n\n"
+        "# This credential was NOT created by keynest. Its value is opaque:\n"
+        "# whatever the owning application stored (string, JSON, token, etc.).\n"
+        "value = keyring.get_password(\n"
+        f"    {cred.service!r},\n"
+        f"    {user!r},\n"
+        ")\n"
+        "if value is None:\n"
+        f'    raise RuntimeError("Credential not found: {cred.service}")\n'
+        "# `value` is the raw secret; parse it yourself if it has structure."
+    )
+    return Snippet(title="Python: raw keyring (opaque value)", language="python", code=code)
+
+
+def raw_bash(cred: RawCredential) -> Snippet:
+    """Generate a Bash one-liner reading a non-keynest OS credential."""
+    user = cred.username or ""
+    code = (
+        "# Opaque credential not managed by keynest; value printed as stored.\n"
+        "# less safe: the secret may enter shell history/scrollback/logs.\n"
+        f'python -c "import keyring; print(keyring.get_password({cred.service!r}, {user!r}))"'
+    )
+    return Snippet(title="Bash: raw keyring (less safe)", language="bash", code=code)
+
+
+def raw_snippets(cred: RawCredential) -> list[Snippet]:
+    """Generate the snippet set for a raw, non-keynest OS credential."""
+    return [raw_python_keyring(cred), raw_bash(cred)]
 
 
 def _to_camel(name: str) -> str:

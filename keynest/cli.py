@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections.abc import Sequence
 
@@ -27,7 +28,7 @@ from keynest.__about__ import __version__
 from keynest.backends.base import BackendError, SecretBackend, SecretMapNotFound
 from keynest.backends.registry import get_backend
 from keynest.model import BackendId, SecretMap, key_warning, parse_path
-from keynest.services import codegen
+from keynest.services import codegen, repo_context
 from keynest.services.audit import AuditEvent, AuditLog
 from keynest.services.aws_policy import generate_policy_json
 from keynest.services.dotenv_parser import parse_dotenv_file, serialize_dotenv
@@ -59,6 +60,65 @@ def _announce_dry_run(message: str) -> int:
     return 0
 
 
+def _repo_disabled(args: argparse.Namespace) -> bool:
+    """Whether transparent repo defaulting is turned off for this invocation."""
+    return bool(getattr(args, "no_repo", False)) or bool(os.environ.get("KEYNEST_NO_REPO"))
+
+
+def _repo_ctx(args: argparse.Namespace) -> repo_context.RepoContext | None:
+    """Return the detected repo context, or ``None`` if defaulting is disabled."""
+    if _repo_disabled(args):
+        return None
+    return repo_context.detect()
+
+
+def _resolve_path(args: argparse.Namespace, path: str, *, echo: bool = False) -> tuple[str, str]:
+    """Parse ``path`` into ``(folder, name)``, defaulting to the detected repo.
+
+    Resolution when a repo is detected and defaulting is enabled:
+
+    * a *bare* name (no ``/``) resolves against the repo's default folder;
+    * a *folder-only* path (e.g. ``my-folder/``) fills the name from the
+      ``.keynest`` ``default_map``, if set.
+
+    An explicit ``folder/name`` always wins. On ``echo``, the resolved logical
+    path is printed to stderr so mutations are never silent.
+    """
+    ctx = _repo_ctx(args)
+    raw = path.strip()
+    trailing_slash = raw.endswith("/")
+    stripped = raw.strip("/")
+    # "folder/" (a folder with no name) vs a bare "name" with no slash at all.
+    is_folder_only = trailing_slash and "/" not in stripped
+    is_bare_name = not trailing_slash and "/" not in stripped and bool(stripped)
+
+    if ctx is not None and is_bare_name:
+        # Bare name -> the repo's default folder.
+        folder, name = parse_path(f"{ctx.default_folder}/{stripped}")
+        _echo_resolved(echo, folder, name)
+        return folder, name
+
+    if ctx is not None and ctx.default_map:
+        if not stripped:
+            # Empty path -> repo default folder + default_map name.
+            folder, name = parse_path(f"{ctx.default_folder}/{ctx.default_map}")
+            _echo_resolved(echo, folder, name)
+            return folder, name
+        if is_folder_only:
+            # "some-folder/" -> fill the name from default_map.
+            folder, name = parse_path(f"{stripped}/{ctx.default_map}")
+            _echo_resolved(echo, folder, name)
+            return folder, name
+
+    return parse_path(path)
+
+
+def _echo_resolved(echo: bool, folder: str, name: str) -> None:
+    """Print the resolved logical path to stderr when ``echo`` is set."""
+    if echo:
+        print(f"→ /{folder}/{name}", file=sys.stderr)
+
+
 # -- command implementations -------------------------------------------------
 
 
@@ -76,7 +136,7 @@ def cmd_list(args: argparse.Namespace) -> int:
 
 def cmd_get(args: argparse.Namespace) -> int:
     """Print a single key's value (less safe than ``run``)."""
-    folder, name = parse_path(args.path)
+    folder, name = _resolve_path(args, args.path)
     backend = _get_backend(args)
     secret_map = backend.get_secret_map(folder, name)
     if args.key not in secret_map.values:
@@ -91,7 +151,7 @@ def cmd_get(args: argparse.Namespace) -> int:
 
 def cmd_set(args: argparse.Namespace) -> int:
     """Set a single key in a secret map, creating the map if needed."""
-    folder, name = parse_path(args.path)
+    folder, name = _resolve_path(args, args.path, echo=True)
     backend = _get_backend(args)
     try:
         secret_map = backend.get_secret_map(folder, name)
@@ -110,7 +170,7 @@ def cmd_set(args: argparse.Namespace) -> int:
 
 def cmd_run(args: argparse.Namespace) -> int:
     """Run a command with the secret map injected into its environment."""
-    folder, name = parse_path(args.path)
+    folder, name = _resolve_path(args, args.path, echo=True)
     backend = _get_backend(args)
     secret_map = backend.get_secret_map(folder, name)
     if not args.command:
@@ -127,7 +187,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 def cmd_print_code(args: argparse.Namespace) -> int:
     """Print a generated code snippet for the secret map."""
-    folder, name = parse_path(args.path)
+    folder, name = _resolve_path(args, args.path)
     backend = _get_backend(args)
     secret_map = backend.get_secret_map(folder, name)
     snippets = codegen.all_snippets(secret_map)
@@ -146,7 +206,7 @@ def cmd_print_code(args: argparse.Namespace) -> int:
 
 def cmd_import_env(args: argparse.Namespace) -> int:
     """Import a ``.env`` file into a secret map."""
-    folder, name = parse_path(args.path)
+    folder, name = _resolve_path(args, args.path, echo=True)
     result = parse_dotenv_file(args.file)
     for warning in result.warnings:
         print(f"Warning: {warning}", file=sys.stderr)
@@ -174,7 +234,7 @@ def cmd_export_env(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 2
-    folder, name = parse_path(args.path)
+    folder, name = _resolve_path(args, args.path, echo=True)
     backend = _get_backend(args)
     secret_map = backend.get_secret_map(folder, name)
     if _is_dry_run(args):
@@ -199,7 +259,7 @@ def cmd_aws_policy(args: argparse.Namespace) -> int:
 
             backend = AwsSecretsManagerBackend(profile=args.profile, region=region)
             identity = backend.caller_identity()
-            account = account or identity.get("Account")
+            account = account or identity.get("Account") or "<account-id>"
             region = region or backend.region or "us-east-1"
         except Exception as exc:  # pylint: disable=broad-exception-caught
             print(f"Could not auto-detect AWS identity ({exc}).", file=sys.stderr)
@@ -257,8 +317,8 @@ def cmd_diff(args: argparse.Namespace) -> int:
     from keynest.services import maptools  # pylint: disable=import-outside-toplevel
 
     backend = _get_backend(args)
-    left = backend.get_secret_map(*parse_path(args.left))
-    right = backend.get_secret_map(*parse_path(args.right))
+    left = backend.get_secret_map(*_resolve_path(args, args.left))
+    right = backend.get_secret_map(*_resolve_path(args, args.right))
     diff = maptools.diff_maps(left, right)
     print(f"{left.path} -> {right.path}")
     for key in diff.added:
@@ -277,7 +337,7 @@ def cmd_lint(args: argparse.Namespace) -> int:
     from keynest.services import maptools  # pylint: disable=import-outside-toplevel
 
     backend = _get_backend(args)
-    secret_map = backend.get_secret_map(*parse_path(args.path))
+    secret_map = backend.get_secret_map(*_resolve_path(args, args.path))
     findings = maptools.lint_map(secret_map)
     if not findings:
         print(f"{secret_map.path}: clean")
@@ -310,7 +370,7 @@ def cmd_redact_export(args: argparse.Namespace) -> int:
     from keynest.services import maptools  # pylint: disable=import-outside-toplevel
 
     backend = _get_backend(args)
-    secret_map = backend.get_secret_map(*parse_path(args.path))
+    secret_map = backend.get_secret_map(*_resolve_path(args, args.path))
     print(maptools.export_redacted_json(secret_map))
     return 0
 
@@ -320,7 +380,7 @@ def cmd_duplicate(args: argparse.Namespace) -> int:
     from keynest.services import maptools  # pylint: disable=import-outside-toplevel
 
     backend = _get_backend(args)
-    source = backend.get_secret_map(*parse_path(args.path))
+    source = backend.get_secret_map(*_resolve_path(args, args.path, echo=True))
     copy = maptools.duplicate_map(source, args.new_name, new_folder=args.folder)
     if _is_dry_run(args):
         return _announce_dry_run(f"would duplicate {source.path} to {copy.path} ({len(copy.values)} key(s))")
@@ -366,6 +426,37 @@ def cmd_backup_index(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_init_repo(args: argparse.Namespace) -> int:
+    """Write a ``.keynest`` marker so this repo maps to an explicit folder.
+
+    The marker is secret-free (it only records a folder and optional default map
+    name) and is safe to commit. Without ``--folder`` the folder is inferred
+    from the repo's remote identity.
+    """
+    ctx = repo_context.detect()
+    if ctx is None:
+        print("Not inside a git repository; nothing to initialize.", file=sys.stderr)
+        return 2
+
+    folder = args.folder or ctx.default_folder
+    marker_path = ctx.root / repo_context.MARKER_FILENAME
+    if marker_path.exists() and not args.force:
+        print(f"{marker_path} already exists; pass --force to overwrite.", file=sys.stderr)
+        return 2
+
+    if _is_dry_run(args):
+        target = f"folder={folder}" + (f", default_map={args.default_map}" if args.default_map else "")
+        return _announce_dry_run(f"would write {marker_path} ({target})")
+
+    try:
+        written = repo_context.write_marker(ctx.root, folder, default_map=args.default_map)
+    except repo_context.MarkerError as exc:
+        print(f"Refusing to write marker: {exc}", file=sys.stderr)
+        return 2
+    print(f"Wrote {written} (folder=/{folder}). Safe to commit; contains no secrets.")
+    return 0
+
+
 # -- parser ------------------------------------------------------------------
 
 
@@ -388,6 +479,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="Describe side effects without performing them (for smoke tests).",
+    )
+    common.add_argument(
+        "--no-repo",
+        action="store_true",
+        help="Disable transparent repo folder defaulting for this invocation.",
     )
 
     sub = parser.add_subparsers(dest="command", required=True)
@@ -478,6 +574,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_backup = sub.add_parser("backup-index", parents=[common], help="Back up the local non-secret index.")
     p_backup.set_defaults(func=cmd_backup_index)
+
+    p_init = sub.add_parser(
+        "init-repo",
+        parents=[common],
+        help="Write a secret-free .keynest marker mapping this repo to a folder.",
+    )
+    p_init.add_argument("--folder", help="Folder to record (default: inferred from the repo).")
+    p_init.add_argument("--default-map", dest="default_map", help="Default map name when only a folder is given.")
+    p_init.add_argument("--force", action="store_true", help="Overwrite an existing .keynest.")
+    p_init.set_defaults(func=cmd_init_repo)
 
     return parser
 

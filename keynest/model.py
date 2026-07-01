@@ -139,6 +139,25 @@ class SecretMapRef:
         return logical_path(self.folder, self.name)
 
 
+@dataclass(frozen=True)
+class RawCredential:
+    """A non-keynest credential discovered in the OS store (names only).
+
+    Unlike a :class:`SecretMapRef`, this is *not* a keynest-managed map: it has
+    no folder/name structure and keynest cannot load or edit its value. Only the
+    ``(service, username)`` identifiers are known — enumeration never reads the
+    secret payload.
+    """
+
+    service: str
+    username: str | None = None
+
+    @property
+    def label(self) -> str:
+        """A compact display label, e.g. ``service — user``."""
+        return f"{self.service} — {self.username}" if self.username else self.service
+
+
 @dataclass
 class SecretMap:
     """A secret map: a named dictionary of keys to JSON-compatible values."""

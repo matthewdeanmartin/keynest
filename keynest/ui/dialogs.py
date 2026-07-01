@@ -6,29 +6,36 @@ import tkinter as tk
 from tkinter import ttk
 
 from keynest.services.codegen import Snippet
+from keynest.ui.geometry import center_window
 
 
 class TextDialog(tk.Toplevel):
-    """A modal dialog showing read-only, scrollable text with a Copy button."""
+    """A modal dialog showing read-only, scrollable text with a Copy button.
 
-    def __init__(self, parent: tk.Misc, title: str, content: str) -> None:
+    By default the text *wraps* at word boundaries, which suits prose (help and
+    notes). Pass ``wrap=False`` for content where horizontal layout matters
+    (e.g. code or aligned tables), which adds a horizontal scrollbar instead.
+    """
+
+    def __init__(self, parent: tk.Misc, title: str, content: str, *, wrap: bool = True) -> None:
         """Show ``content`` under ``title`` in a modal window."""
         super().__init__(parent)
         self.title(title)
-        self.geometry("680x460")
-        self.transient(parent)  # type: ignore[call-overload]  # tk stub is over-narrow
+        center_window(self, 680, 460)
+        self.transient(parent)  # type: ignore[call-overload]  # ty: ignore[no-matching-overload]
 
-        text = tk.Text(self, wrap="none", font=("Consolas", 10))
+        text = tk.Text(self, wrap="word" if wrap else "none", font=("Consolas", 10))
         text.insert("1.0", content)
         text.configure(state="disabled")
 
         yscroll = ttk.Scrollbar(self, orient="vertical", command=text.yview)
-        xscroll = ttk.Scrollbar(self, orient="horizontal", command=text.xview)
-        text.configure(yscrollcommand=yscroll.set, xscrollcommand=xscroll.set)
-
+        text.configure(yscrollcommand=yscroll.set)
         text.grid(row=0, column=0, sticky="nsew")
         yscroll.grid(row=0, column=1, sticky="ns")
-        xscroll.grid(row=1, column=0, sticky="ew")
+        if not wrap:
+            xscroll = ttk.Scrollbar(self, orient="horizontal", command=text.xview)
+            text.configure(xscrollcommand=xscroll.set)
+            xscroll.grid(row=1, column=0, sticky="ew")
 
         buttons = ttk.Frame(self)
         buttons.grid(row=2, column=0, columnspan=2, sticky="e", padx=8, pady=6)
@@ -51,8 +58,8 @@ class CodeViewerDialog(tk.Toplevel):
         """Show generated code ``snippets`` (a list of ``codegen.Snippet``)."""
         super().__init__(parent)
         self.title("Generate code")
-        self.geometry("820x520")
-        self.transient(parent)  # type: ignore[call-overload]  # tk stub is over-narrow
+        center_window(self, 820, 520)
+        self.transient(parent)  # type: ignore[call-overload]  # ty: ignore[no-matching-overload]
         self._snippets = snippets
 
         listbox = tk.Listbox(self, exportselection=False, width=34)

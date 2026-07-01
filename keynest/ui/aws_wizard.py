@@ -13,6 +13,7 @@ from tkinter import ttk
 
 from keynest.backends.aws_secrets_manager import available_profiles
 from keynest.services.aws_wizard import AwsSetupWizard, WizardStep
+from keynest.ui.geometry import center_window
 
 
 class AwsWizardDialog(tk.Toplevel):
@@ -22,8 +23,8 @@ class AwsWizardDialog(tk.Toplevel):
         """Build the wizard UI as a child of ``parent``."""
         super().__init__(parent)
         self.title("AWS setup wizard")
-        self.geometry("720x560")
-        self.transient(parent)  # type: ignore[call-overload]  # tk stub is over-narrow
+        center_window(self, 720, 560)
+        self.transient(parent)  # type: ignore[call-overload]  # ty: ignore[no-matching-overload]
 
         intro = (
             "Checks your AWS identity, probes ListSecrets, creates then schedules "

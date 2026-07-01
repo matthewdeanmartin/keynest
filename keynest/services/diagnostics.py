@@ -10,6 +10,7 @@ import platform
 import sys
 from dataclasses import dataclass, field
 
+from keynest.services import repo_context
 from keynest.services.audit import default_audit_path
 from keynest.services.index_store import IndexStore
 
@@ -27,6 +28,10 @@ class Diagnostics:
     index_item_count: int
     audit_path: str
     audit_exists: bool
+    repo_detected: bool = False
+    repo_slug: str | None = None
+    repo_default_folder: str | None = None
+    repo_remote_url: str | None = None
     notes: list[str] = field(default_factory=list)
 
     def as_lines(self) -> list[str]:
@@ -39,6 +44,12 @@ class Diagnostics:
             f"index: {self.index_path} (exists={self.index_exists}, items={self.index_item_count})",
             f"audit log: {self.audit_path} (exists={self.audit_exists})",
         ]
+        if self.repo_detected:
+            slug = self.repo_slug or "(local dir)"
+            remote = f", remote={self.repo_remote_url}" if self.repo_remote_url else ""
+            lines.append(f"repo: {slug} -> default folder /{self.repo_default_folder}{remote}")
+        else:
+            lines.append("repo: none detected (default folder /default)")
         lines.extend(f"note: {note}" for note in self.notes)
         return lines
 
@@ -95,6 +106,7 @@ def collect(index: IndexStore | None = None) -> Diagnostics:
 
     audit_path = default_audit_path()
 
+    ctx = repo_context.detect()
     return Diagnostics(
         python_version=platform.python_version(),
         platform=platform.platform(),
@@ -105,5 +117,9 @@ def collect(index: IndexStore | None = None) -> Diagnostics:
         index_item_count=item_count,
         audit_path=str(audit_path),
         audit_exists=audit_path.exists(),
+        repo_detected=ctx is not None,
+        repo_slug=ctx.slug if ctx else None,
+        repo_default_folder=ctx.default_folder if ctx else None,
+        repo_remote_url=ctx.remote_url if ctx else None,
         notes=notes,
     )
