@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import subprocess
+import subprocess  # nosec
 import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
@@ -623,7 +623,7 @@ class MainWindow(tk.Tk):
     def _open_credential_manager(self) -> None:
         """Open the Windows Credential Manager UI (Windows only)."""
         try:
-            subprocess.Popen(["rundll32.exe", "keymgr.dll,KRShowKeyMgr"])
+            subprocess.Popen(["rundll32.exe", "keymgr.dll,KRShowKeyMgr"])  # nosec
         except OSError as exc:
             messagebox.showerror("Credential Manager", f"Could not open Credential Manager:\n{exc}")
 

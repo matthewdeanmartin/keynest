@@ -9,9 +9,13 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 
-UTC = timezone.utc
+try:
+    from datetime import UTC, datetime
+except ImportError:  # Python < 3.11
+    from datetime import datetime, timezone
+
+    UTC = timezone.utc
 from typing import Literal
 
 # JSON-compatible scalar values tolerated in a secret map payload.

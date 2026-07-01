@@ -14,10 +14,12 @@ from __future__ import annotations
 
 import configparser
 import re
+
 try:
     import tomllib
 except ImportError:  # Python < 3.11
-    import tomli as tomllib  # type: ignore[no-reuse-stub,import-not-found]
+    import tomli as tomllib # type: ignore[no-redef]
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal

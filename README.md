@@ -23,12 +23,12 @@ keynest is useful when you:
 
 ## How it compares
 
-| Tool category            | Better fit when                                                                  | How keynest differs                                                                          |
+| Tool category | Better fit when | How keynest differs |
 |--------------------------|----------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------|
-| `.env` files             | Portability and framework-native loading matter more than plaintext-at-rest risk | keynest avoids a working plaintext file and injects values at process launch                 |
-| Password managers        | You need browser autofill, personal records, sharing, or polished mobile apps    | keynest organizes flat environment-style maps and focuses on developer processes             |
-| Team secret platforms    | You need sharing, access policy, rotation, approvals, or centralized audit       | keynest is deliberately single-developer and has no server of its own                        |
-| Cloud-only secret stores | Production workloads already fetch secrets directly from a cloud provider        | keynest adds a local OS-keyring option, a GUI, and one workflow across local and AWS storage |
+| `.env` files | Portability and framework-native loading matter more than plaintext-at-rest risk | keynest avoids a working plaintext file and injects values at process launch |
+| Password managers | You need browser autofill, personal records, sharing, or polished mobile apps | keynest organizes flat environment-style maps and focuses on developer processes |
+| Team secret platforms | You need sharing, access policy, rotation, approvals, or centralized audit | keynest is deliberately single-developer and has no server of its own |
+| Cloud-only secret stores | Production workloads already fetch secrets directly from a cloud provider | keynest adds a local OS-keyring option, a GUI, and one workflow across local and AWS storage |
 
 keynest is alpha software. It reduces accidental exposure through files, commits, shell exports, and casual display;
 it is not a boundary against malware, a compromised user account, or an untrusted child process.

@@ -18,6 +18,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
 ]
 dependencies = [
     "keyring>=24.0.0",
@@ -99,7 +100,7 @@ dev = [
     "refurb>=2.0.0; python_version >= '3.10'",
     "crosshair-tool>=0.0.80",
     "deptry>=0.20.0",
-    "import-linter>=2.0",
+    "import-linter>=2.0; python_version < '3.15'",
 ]
 
 [tool.uv]
@@ -190,7 +191,7 @@ warn_return_any = false
 
 [tool.ruff]
 line-length = 120
-target-version = "py311"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = [

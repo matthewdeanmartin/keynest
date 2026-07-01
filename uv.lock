@@ -1488,7 +1488,7 @@ dependencies = [
     { name = "click" },
     { name = "grimp" },
     { name = "rich" },
-    { name = "tomli", marker = "python_full_version < '3.11'" },
+    { name = "tomli", marker = "python_full_version < '3.11' or python_full_version >= '3.15'" },
     { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/23/a7/5ae6dc1caf8229f9bcd05b0dd71aba6d5b699b81e5d599fd05bb36046e2a/import_linter-2.12.tar.gz", hash = "sha256:217f0f0f0890b8625389765039d52c215f4c6d4a047f42ea78b6d00ceba1900e", size = 1173831, upload-time = "2026-06-23T08:58:35.313Z" }
@@ -1844,7 +1844,7 @@ dev = [
     { name = "git2md" },
     { name = "griffe" },
     { name = "hypothesis" },
-    { name = "import-linter" },
+    { name = "import-linter", marker = "python_full_version < '3.15'" },
     { name = "interrogate" },
     { name = "isort" },
     { name = "jiggle-version" },
@@ -1898,7 +1898,7 @@ dev = [
     { name = "git2md", marker = "python_full_version >= '3.10'", specifier = ">=0.1.0" },
     { name = "griffe", specifier = ">=1.0.0" },
     { name = "hypothesis", specifier = ">=6.100.0" },
-    { name = "import-linter", specifier = ">=2.0" },
+    { name = "import-linter", marker = "python_full_version < '3.15'", specifier = ">=2.0" },
     { name = "interrogate", specifier = ">=1.5.0" },
     { name = "isort", specifier = ">=6.0.0" },
     { name = "jiggle-version", specifier = ">=2.1.0" },

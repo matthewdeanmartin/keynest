@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+try:
+    from datetime import UTC, datetime, timedelta
+except ImportError:  # Python < 3.11
+    from datetime import datetime, timedelta, timezone
+
+    UTC = timezone.utc
 
 import pytest
 
