@@ -33,6 +33,6 @@ __keywords__ = [
     "tkinter",
 ]
 __license__ = "MIT"
-__requires_python__ = ">=3.11"
+__requires_python__ = ">=3.10"
 __status__ = "3 - Alpha"
-__dependencies__ = ["keyring>=24.0.0", "boto3>=1.34.0"]
+__dependencies__ = ["keyring>=24.0.0", "boto3>=1.34.0", "tomli>=2.0.0; python_version < '3.11'"]
