@@ -33,6 +33,7 @@ from keynest.services.audit import AuditEvent, AuditLog
 from keynest.services.aws_policy import generate_policy_json
 from keynest.services.dotenv_parser import parse_dotenv_file, serialize_dotenv
 from keynest.services.runner import run_with_secrets
+from keynest.upgrade_integration import add_commands, run_command
 
 
 def _backend_id(args: argparse.Namespace) -> BackendId:
@@ -585,6 +586,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_init.add_argument("--force", action="store_true", help="Overwrite an existing .keynest.")
     p_init.set_defaults(func=cmd_init_repo)
 
+    add_commands(sub)
+
     return parser
 
 
@@ -616,6 +619,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     raw = list(sys.argv[1:] if argv is None else argv)
     parser = build_parser()
     args = parser.parse_args(_normalize_run_argv(raw))
+    if (result := run_command(args)) is not None:
+        return int(result)
     try:
         return int(args.func(args))
     except SecretMapNotFound as exc:

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Wired `do_i_need_to_upgrade` into normal `keynest` execution so update notices
+  can appear during GUI startup and shutdown without a separate updater CLI
+- Added integrated `keynest upgrade` and `keynest check-updates` subcommands
 - Transparent repo relocation: detect the git repo (via `.git/config`, no `git`
   binary) and default a secret map's folder to its `owner.repo` identity
   (GitHub/GitLab/GHE remotes, SSH and HTTPS; credentials in remote URLs are
