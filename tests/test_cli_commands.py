@@ -233,3 +233,100 @@ def test_import_dry_run_does_not_persist(tmp_path, capsys):
     assert main(["import-env", "app/dev", str(env), "--dry-run"]) == 0
     assert "[dry-run]" in capsys.readouterr().out
     assert main(["get", "app/dev", "A"]) == 2
+
+
+# -- delete / rename ---------------------------------------------------------- #
+
+
+def test_delete_prompt_declined_keeps_map(capsys, monkeypatch):
+    main(["set", "my-app/dev", "A", "1"])
+    monkeypatch.setattr("builtins.input", lambda prompt: "n")
+    assert main(["delete", "my-app/dev"]) == 1
+    capsys.readouterr()
+    assert main(["get", "my-app/dev", "A"]) == 0
+
+
+def test_delete_prompt_accepted_removes_map(capsys, monkeypatch):
+    main(["set", "my-app/dev", "A", "1"])
+    monkeypatch.setattr("builtins.input", lambda prompt: "y")
+    assert main(["delete", "my-app/dev"]) == 0
+    capsys.readouterr()
+    assert main(["get", "my-app/dev", "A"]) == 2
+
+
+def test_delete_yes_skips_prompt(capsys, monkeypatch):
+    main(["set", "my-app/dev", "A", "1"])
+    monkeypatch.setattr("builtins.input", lambda prompt: pytest.fail("--yes must not prompt"))
+    assert main(["delete", "my-app/dev", "--yes"]) == 0
+    capsys.readouterr()
+    assert main(["get", "my-app/dev", "A"]) == 2
+
+
+def test_delete_missing_map_returns_2():
+    assert main(["delete", "nope/nope", "--yes"]) == 2
+
+
+def test_delete_dry_run_keeps_map(capsys):
+    main(["set", "my-app/dev", "A", "1"])
+    capsys.readouterr()
+    assert main(["delete", "my-app/dev", "--dry-run"]) == 0
+    assert "[dry-run]" in capsys.readouterr().out
+    assert main(["get", "my-app/dev", "A"]) == 0
+
+
+def test_rename_moves_map(capsys):
+    main(["set", "my-app/dev", "A", "1"])
+    assert main(["rename", "my-app/dev", "my-app/staging"]) == 0
+    capsys.readouterr()
+    assert main(["get", "my-app/staging", "A"]) == 0
+    assert main(["get", "my-app/dev", "A"]) == 2
+
+
+def test_rename_onto_existing_map_returns_1(capsys):
+    main(["set", "app/one", "A", "1"])
+    main(["set", "app/two", "B", "2"])
+    capsys.readouterr()
+    assert main(["rename", "app/one", "app/two"]) == 1
+    assert "already exists" in capsys.readouterr().err
+    # Both maps intact.
+    assert main(["get", "app/one", "A"]) == 0
+    assert main(["get", "app/two", "B"]) == 0
+
+
+def test_rename_same_path_is_noop(capsys):
+    main(["set", "app/dev", "A", "1"])
+    capsys.readouterr()
+    assert main(["rename", "app/dev", "app/dev"]) == 0
+    assert "nothing to do" in capsys.readouterr().out
+
+
+def test_rename_dry_run_does_not_move(capsys):
+    main(["set", "app/dev", "A", "1"])
+    capsys.readouterr()
+    assert main(["rename", "app/dev", "app/prod", "--dry-run"]) == 0
+    assert "[dry-run]" in capsys.readouterr().out
+    assert main(["get", "app/dev", "A"]) == 0
+
+
+# -- os-credentials ------------------------------------------------------------ #
+
+
+def test_os_credentials_lists_names_only(capsys, monkeypatch):
+    from keynest.model import RawCredential
+
+    monkeypatch.setattr(
+        "keynest.backends.os_keyring.OsKeyringBackend.list_raw_credentials",
+        lambda self: [RawCredential("git:https://github.com", "alice"), RawCredential("wifi", None)],
+    )
+    assert main(["os-credentials"]) == 0
+    captured = capsys.readouterr()
+    assert "git:https://github.com" in captured.out
+    assert "alice" in captured.out
+    assert "wifi" in captured.out
+    assert "never reads their values" in captured.err
+
+
+def test_os_credentials_empty_message(capsys):
+    # The in-memory test keyring cannot be enumerated.
+    assert main(["os-credentials"]) == 0
+    assert "no other OS credentials" in capsys.readouterr().out

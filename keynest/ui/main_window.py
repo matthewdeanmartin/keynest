@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess  # nosec
 import sys
+import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
@@ -24,6 +25,7 @@ from keynest.ui.folder_panel import RAW_FOLDER, FolderPanel
 from keynest.ui.geometry import center_fraction
 from keynest.ui.quick_dialogs import PasteEnvDialog, QuickAddPasswordDialog
 from keynest.ui.secret_editor import SecretEditor
+from keynest.upgrade_integration import cached_notice, fresh_notice
 
 SECURITY_NOTE = (
     "keynest protects against accidental commits, plaintext files, and casual "
@@ -111,6 +113,7 @@ class MainWindow(tk.Tk):
         self._status.pack(fill="x", side="bottom")
 
         self.refresh()
+        self._show_startup_update_notice()
 
     # -- backend access ------------------------------------------------------
 
@@ -172,6 +175,8 @@ class MainWindow(tk.Tk):
         help_menu = tk.Menu(menubar, tearoff=0)
         help_menu.add_command(label="Why is my list empty?", command=self._show_keyring_help)
         help_menu.add_command(label="Security posture", command=self._show_security)
+        help_menu.add_separator()
+        help_menu.add_command(label="Check for updates...", command=self._check_updates)
         menubar.add_cascade(label="Help", menu=help_menu)
 
         self.config(menu=menubar)
@@ -620,10 +625,47 @@ class MainWindow(tk.Tk):
     def _show_security(self) -> None:
         TextDialog(self, "Security posture", SECURITY_NOTE)
 
+    # -- updates ---------------------------------------------------------------
+
+    def _show_startup_update_notice(self) -> None:
+        """Surface a cached update notice in the status bar (cache-only, no network)."""
+        try:
+            notice = cached_notice()
+        except Exception:  # pylint: disable=broad-exception-caught — a version check must never break the GUI
+            return
+        if notice:
+            self._set_status(notice.splitlines()[0])
+
+    def _check_updates(self) -> None:
+        """Check PyPI for keynest updates without blocking the Tk mainloop."""
+        self._set_status("Checking for updates...")
+        result: list[str] = []
+
+        def worker() -> None:
+            try:
+                result.append(fresh_notice())
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                result.append(f"[warn] update check failed: {exc}")
+
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+
+        def poll() -> None:
+            if thread.is_alive():
+                self.after(200, poll)
+                return
+            text = result[0] if result else ""
+            self._set_status(text.splitlines()[0] if text else "keynest is up to date.")
+            TextDialog(self, "Check for updates", text or "keynest is up to date.")
+
+        self.after(200, poll)
+
     def _open_credential_manager(self) -> None:
         """Open the Windows Credential Manager UI (Windows only)."""
         try:
-            subprocess.run(["rundll32.exe", "keymgr.dll,KRShowKeyMgr"], check=False)  # nosec
+            # Popen, not run(): rundll32 stays alive until the Credential
+            # Manager dialog is closed, and waiting here freezes the Tk mainloop.
+            subprocess.Popen(["rundll32.exe", "keymgr.dll,KRShowKeyMgr"])  # nosec
         except OSError as exc:
             messagebox.showerror("Credential Manager", f"Could not open Credential Manager:\n{exc}")
 

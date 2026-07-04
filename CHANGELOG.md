@@ -11,7 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Wired `do_i_need_to_upgrade` into normal `keynest` execution so update notices
   can appear during GUI startup and shutdown without a separate updater CLI
-- Added integrated `keynest upgrade` and `keynest check-updates` subcommands
+- Added integrated `keynest upgrade` and `keynest check-updates` subcommands;
+  `check-updates --help` documents the scripting exit codes (0/10/1) and the
+  `DO_I_NEED_TO_UPGRADE=off` kill switch
+- GUI surfaces update notices: cached notice in the status bar at launch, and a
+  Help → "Check for updates..." menu item that checks PyPI off the main thread
+- New `keynest delete` (confirmation prompt, `--yes`, `--dry-run`) and
+  `keynest rename` subcommands, matching the GUI's delete/rename actions
+- New `keynest os-credentials` subcommand listing OS credentials from other
+  apps (service/username only; values are never read)
 - Transparent repo relocation: detect the git repo (via `.git/config`, no `git`
   binary) and default a secret map's folder to its `owner.repo` identity
   (GitHub/GitLab/GHE remotes, SSH and HTTPS; credentials in remote URLs are

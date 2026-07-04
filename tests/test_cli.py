@@ -40,6 +40,17 @@ def test_check_updates_subcommand_parses() -> None:
     assert args._diu_no_network is True
 
 
+def test_check_updates_help_documents_exit_codes(capsys: pytest.CaptureFixture[str]) -> None:
+    """--help must explain the scripting exit codes (0/10/1) and the kill switch."""
+    from keynest.cli import main
+
+    with pytest.raises(SystemExit):
+        main(["check-updates", "--help"])
+    help_text = capsys.readouterr().out
+    assert "10 = upgrades available" in help_text
+    assert "DO_I_NEED_TO_UPGRADE=off" in help_text
+
+
 def test_main_dispatches_upgrade_subcommand() -> None:
     """The integrated upgrade subcommand should return its dispatcher exit code."""
     from keynest.cli import main

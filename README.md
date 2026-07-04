@@ -89,6 +89,16 @@ Run `keynest --help` for all commands. The full documentation covers the [quick 
 [CLI](docs/usage/cli.md), [GUI](docs/usage/gui.md), [repository defaults](docs/repositories.md),
 [storage model](docs/concepts.md), [AWS backend](docs/aws.md), and [security limitations](docs/security.md).
 
+## Staying up to date
+
+`keynest check-updates` reports whether a newer release is on PyPI, with script-friendly exit codes: `0` up to date,
+`10` upgrades available, `1` check errors. `keynest upgrade` upgrades keynest in place when the install method
+supports it (pip, pipx, uv tool); `keynest upgrade --check` and `--dry-run` only report. The GUI shows any cached
+update notice in the status bar at launch, and Help → "Check for updates..." runs a fresh check.
+
+Update checks respect an end-user kill switch: set `DO_I_NEED_TO_UPGRADE=off` to disable them entirely, or
+`DO_I_NEED_TO_UPGRADE=no-network` to allow cache reads but never touch the network.
+
 ## Contributing
 
 See [CONTRIBUTING.md](docs/extending/CONTRIBUTING.md).
