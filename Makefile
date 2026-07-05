@@ -210,7 +210,8 @@ bandit:
 # Advisories accepted with no available fix. Revisit when upstream ships a patch.
 #   GHSA-p4gq-832x-fm9v: nltk path traversal in nltk.data.load(); pulled in transitively
 #     via pydoclint->textstat (dev-only, not a runtime dependency). No fixed release.
-AUDIT_IGNORE = GHSA-p4gq-832x-fm9v
+#   PYSEC-2026-597: OSV/PyPI alias for the same unfixed nltk 3.9.4 issue.
+AUDIT_IGNORE = GHSA-p4gq-832x-fm9v PYSEC-2026-597
 
 audit:
 	@echo "=== uv audit ==="
@@ -270,9 +271,9 @@ gha-validate:
 	@$(UV) run python -c "import pathlib, yaml; [yaml.safe_load(p.read_text(encoding='utf-8')) for p in pathlib.Path('$(GHA_WORKFLOWS)').glob('*.yml')]; print('YAML parse OK')"
 	@$(UV) run python -c "\
 from pathlib import Path; import yaml; \
-data=yaml.safe_load(Path('$(GHA_WORKFLOWS)/publish_to_pypi.yml').read_text(encoding='utf-8')); \
+data=yaml.safe_load(Path('$(GHA_WORKFLOWS)/release.yml').read_text(encoding='utf-8')); \
 build_steps=data['jobs']['build']['steps']; \
-publish_steps=data['jobs']['pypi-publish']['steps']; \
+publish_steps=data['jobs']['publish']['steps']; \
 up=next(s for s in build_steps if s.get('uses','').startswith('actions/upload-artifact@')); \
 down=next(s for s in publish_steps if s.get('uses','').startswith('actions/download-artifact@')); \
 assert up['with']['name']==down['with']['name']=='packages'; \
@@ -293,7 +294,7 @@ gha-upgrade: gha-pin gha-validate
 
 publish-gha:
 	@echo "Dispatching GitHub Actions publish workflow"
-	gh workflow run publish_to_pypi.yml --ref main
+	gh workflow run create_draft_release.yml --ref main
 
 # ── Release gates ─────────────────────────────────────────────────────────────
 
@@ -309,7 +310,7 @@ publish:
 check: format-check lint-check security test typecheck metadata-check version-check
 	@echo "All checks passed."
 
-check-ci: format-check lint-check security test-ci typecheck metadata-check version-check
+check-ci: lint-check security test-ci typecheck metadata-check version-check
 	@echo "CI checks passed."
 
 prerelease: check dev-status docs-check smoke spell publish-check

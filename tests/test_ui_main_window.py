@@ -396,7 +396,7 @@ def test_open_credential_manager_does_not_block_the_ui(window, monkeypatch):
         lambda *a, **k: pytest.fail("subprocess.run waits for rundll32 to exit and freezes the Tk mainloop"),
     )
     window._open_credential_manager()
-    assert launched and launched[0][0] == "rundll32.exe"
+    assert launched and launched[0][0].lower().endswith("\\rundll32.exe")
 
 
 def test_open_credential_manager_reports_launch_failure(window, monkeypatch):

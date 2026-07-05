@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess  # nosec
 import sys
 import threading
@@ -631,7 +632,7 @@ class MainWindow(tk.Tk):
         """Surface a cached update notice in the status bar (cache-only, no network)."""
         try:
             notice = cached_notice()
-        except Exception:  # pylint: disable=broad-exception-caught — a version check must never break the GUI
+        except Exception:  # pylint: disable=broad-exception-caught
             return
         if notice:
             self._set_status(notice.splitlines()[0])
@@ -665,7 +666,8 @@ class MainWindow(tk.Tk):
         try:
             # Popen, not run(): rundll32 stays alive until the Credential
             # Manager dialog is closed, and waiting here freezes the Tk mainloop.
-            subprocess.Popen(["rundll32.exe", "keymgr.dll,KRShowKeyMgr"])  # nosec
+            rundll32 = os.path.join(os.environ.get("SYSTEMROOT", r"C:\Windows"), "System32", "rundll32.exe")
+            subprocess.Popen([rundll32, "keymgr.dll,KRShowKeyMgr"])  # pylint: disable=consider-using-with  # nosec B603
         except OSError as exc:
             messagebox.showerror("Credential Manager", f"Could not open Credential Manager:\n{exc}")
 
