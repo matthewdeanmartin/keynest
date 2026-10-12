@@ -37,6 +37,10 @@ class ClipboardManager:
             on_clear: Optional callback invoked after the clipboard is cleared.
         """
         self._cancel_pending()
+        # Tk 9 on Windows can crash when clearing a withdrawn window's
+        # clipboard before its native window exists. Realize it without mapping
+        # or pumping the event loop; visible application widgets already have one.
+        self._widget.winfo_id()
         self._widget.clipboard_clear()
         self._widget.clipboard_append(value)
         self._copied_value = value

@@ -117,3 +117,7 @@ See [CHANGELOG.md](CHANGELOG.md).
 over this tool for the moment. The main advantage of keynest will be that it is pure Python
 and ships a GUI. keynest also borrows patterns shamelessly from `chamber`, SOPS, KeePassXC,
 and the developer-docs-as-a-feature approach of Infisical / Doppler / 1Password.
+
+## Python 3.15 wheel verification — 2026-10-04
+
+Windows Python 3.15.0rc3 passes all 300 tests with stable wheel dependencies and with prereleases allowed (none selected); Python 3.14 also passes 300. Clipboard copying now realizes the native window first to avoid a Tk 9.0.4 hidden-window access violation seen on both interpreters. The crash reproduction and controls are saved in [the human-review draft](docs/python315_clipboard.md); no upstream report has been filed. Full dev tooling remains blocked by separate PyYAML requirements, so this is core/test-toolchain verification.
