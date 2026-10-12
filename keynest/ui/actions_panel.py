@@ -24,7 +24,7 @@ class ActionsPanel(ttk.Frame):
 
         ttk.Label(
             self,
-            text=("Prefer 'Run command' and 'Generate code'.\n" "Copy and Export touch shared OS state."),
+            text=("Prefer 'Run command' and 'Generate code'.\nCopy and Export touch shared OS state."),
             wraplength=170,
             foreground="#555",
             justify="left",

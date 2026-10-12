@@ -520,8 +520,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="keynest",
         description=(
-            "Developer secret workbench: a pure-Python keystore with GUI and "
-            "CLI for OS keyring and AWS Secrets Manager"
+            "Developer secret workbench: a pure-Python keystore with GUI and CLI for OS keyring and AWS Secrets Manager"
         ),
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")

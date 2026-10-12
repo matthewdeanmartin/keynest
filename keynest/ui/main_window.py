@@ -272,7 +272,7 @@ class MainWindow(tk.Tk):
             )
         elif raw:
             self._set_status(
-                f"Showing {len(refs)} keynest map(s) and {len(raw)} other OS " "credential(s) (names only, read-only)."
+                f"Showing {len(refs)} keynest map(s) and {len(raw)} other OS credential(s) (names only, read-only)."
             )
 
     def _raw_credentials(self) -> list[RawCredential]:

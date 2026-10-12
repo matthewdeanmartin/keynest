@@ -15,9 +15,9 @@ from dataclasses import asdict, dataclass, field
 try:
     from datetime import UTC, datetime
 except ImportError:  # Python < 3.11
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    UTC = timezone.utc
+    UTC = UTC
 from pathlib import Path
 
 from keynest.model import SecretMap, SecretMapRef, normalize_folder, now_iso
