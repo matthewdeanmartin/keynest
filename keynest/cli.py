@@ -14,6 +14,11 @@ Examples:
     keynest export-env mastodon-mock/dev .env --i-understand-this-is-less-safe
     keynest aws-policy --folder mastodon-mock
     keynest health
+    keynest rename mastodon-mock/dev mastodon-mock/staging
+    keynest delete mastodon-mock/old --yes
+    keynest os-credentials
+    keynest check-updates
+    keynest upgrade
 """
 
 from __future__ import annotations
@@ -27,12 +32,13 @@ from collections.abc import Sequence
 from keynest.__about__ import __version__
 from keynest.backends.base import BackendError, SecretBackend, SecretMapNotFound
 from keynest.backends.registry import get_backend
-from keynest.model import BackendId, SecretMap, key_warning, parse_path
+from keynest.model import BackendId, SecretMap, SecretMapRef, key_warning, parse_path
 from keynest.services import codegen, repo_context
 from keynest.services.audit import AuditEvent, AuditLog
 from keynest.services.aws_policy import generate_policy_json
 from keynest.services.dotenv_parser import parse_dotenv_file, serialize_dotenv
 from keynest.services.runner import run_with_secrets
+from keynest.upgrade_integration import add_commands, run_command
 
 
 def _backend_id(args: argparse.Namespace) -> BackendId:
@@ -183,6 +189,55 @@ def cmd_run(args: argparse.Namespace) -> int:
         )
     AuditLog().record(AuditEvent(action="run", backend=secret_map.backend, folder=folder, name=name))
     return run_with_secrets(secret_map, list(args.command))
+
+
+def cmd_delete(args: argparse.Namespace) -> int:
+    """Delete a secret map after confirmation (or ``--yes``)."""
+    folder, name = _resolve_path(args, args.path, echo=True)
+    backend = _get_backend(args)
+    backend.get_secret_map(folder, name)  # Fail fast (exit 2) before prompting.
+    if _is_dry_run(args):
+        return _announce_dry_run(f"would delete /{folder}/{name}")
+    if not args.yes:
+        answer = input(f"Delete /{folder}/{name}? This cannot be undone. [y/N] ").strip().lower()
+        if answer not in {"y", "yes"}:
+            print("Aborted.")
+            return 1
+    backend.delete_secret_map(folder, name)
+    print(f"Deleted /{folder}/{name}")
+    return 0
+
+
+def cmd_rename(args: argparse.Namespace) -> int:
+    """Rename or move a secret map, preserving values and metadata."""
+    backend = _get_backend(args)
+    old = SecretMapRef(_backend_id(args), *_resolve_path(args, args.path))
+    new = SecretMapRef(_backend_id(args), *_resolve_path(args, args.new_path))
+    if new == old:
+        print("Source and destination are the same; nothing to do.")
+        return 0
+    if _is_dry_run(args):
+        return _announce_dry_run(f"would rename {old.path} to {new.path}")
+    backend.rename_secret_map(old, new)
+    print(f"Renamed {old.path} to {new.path}")
+    return 0
+
+
+def cmd_os_credentials(args: argparse.Namespace) -> int:
+    """List OS credentials from other apps (names only; values are never read)."""
+    # Imported lazily to mirror the other backend-specific commands.
+    from keynest.backends.os_keyring import OsKeyringBackend  # pylint: disable=import-outside-toplevel
+
+    _ = args
+    creds = OsKeyringBackend().list_raw_credentials()
+    if not creds:
+        print("(no other OS credentials found, or this keyring cannot be enumerated)")
+        return 0
+    for cred in creds:
+        suffix = f"  {cred.username}" if cred.username else ""
+        print(f"{cred.service}{suffix}")
+    print(f"{len(creds)} credential(s); names only - keynest never reads their values.", file=sys.stderr)
+    return 0
 
 
 def cmd_print_code(args: argparse.Namespace) -> int:
@@ -465,8 +520,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="keynest",
         description=(
-            "Developer secret workbench: a pure-Python keystore with GUI and "
-            "CLI for OS keyring and AWS Secrets Manager"
+            "Developer secret workbench: a pure-Python keystore with GUI and CLI for OS keyring and AWS Secrets Manager"
         ),
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -507,6 +561,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("path", help="folder/name path.")
     p_run.add_argument("command", nargs=argparse.REMAINDER, help="-- command [args...]")
     p_run.set_defaults(func=cmd_run)
+
+    p_del = sub.add_parser("delete", parents=[common], help="Delete a secret map (asks for confirmation).")
+    p_del.add_argument("path", help="folder/name path.")
+    p_del.add_argument("--yes", action="store_true", help="Skip the confirmation prompt.")
+    p_del.set_defaults(func=cmd_delete)
+
+    p_ren = sub.add_parser("rename", parents=[common], help="Rename or move a secret map.")
+    p_ren.add_argument("path", help="Current folder/name path.")
+    p_ren.add_argument("new_path", help="New folder/name path.")
+    p_ren.set_defaults(func=cmd_rename)
+
+    p_oscreds = sub.add_parser(
+        "os-credentials",
+        help="List OS credentials from other apps (names only; values are never read).",
+    )
+    p_oscreds.set_defaults(func=cmd_os_credentials)
 
     p_code = sub.add_parser("print-code", parents=[common], help="Print generated code snippets.")
     p_code.add_argument("path", help="folder/name path.")
@@ -585,6 +655,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_init.add_argument("--force", action="store_true", help="Overwrite an existing .keynest.")
     p_init.set_defaults(func=cmd_init_repo)
 
+    add_commands(sub)
+
     return parser
 
 
@@ -616,6 +688,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     raw = list(sys.argv[1:] if argv is None else argv)
     parser = build_parser()
     args = parser.parse_args(_normalize_run_argv(raw))
+    if (result := run_command(args)) is not None:
+        return int(result)
     try:
         return int(args.func(args))
     except SecretMapNotFound as exc:

@@ -5,9 +5,9 @@ from __future__ import annotations
 try:
     from datetime import UTC, datetime, timedelta
 except ImportError:  # Python < 3.11
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    UTC = timezone.utc
+    UTC = UTC
 
 import pytest
 

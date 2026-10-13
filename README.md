@@ -89,6 +89,16 @@ Run `keynest --help` for all commands. The full documentation covers the [quick 
 [CLI](docs/usage/cli.md), [GUI](docs/usage/gui.md), [repository defaults](docs/repositories.md),
 [storage model](docs/concepts.md), [AWS backend](docs/aws.md), and [security limitations](docs/security.md).
 
+## Staying up to date
+
+`keynest check-updates` reports whether a newer release is on PyPI, with script-friendly exit codes: `0` up to date,
+`10` upgrades available, `1` check errors. `keynest upgrade` upgrades keynest in place when the install method
+supports it (pip, pipx, uv tool); `keynest upgrade --check` and `--dry-run` only report. The GUI shows any cached
+update notice in the status bar at launch, and Help → "Check for updates..." runs a fresh check.
+
+Update checks respect an end-user kill switch: set `DO_I_NEED_TO_UPGRADE=off` to disable them entirely, or
+`DO_I_NEED_TO_UPGRADE=no-network` to allow cache reads but never touch the network.
+
 ## Contributing
 
 See [CONTRIBUTING.md](docs/extending/CONTRIBUTING.md).
@@ -107,3 +117,7 @@ See [CHANGELOG.md](CHANGELOG.md).
 over this tool for the moment. The main advantage of keynest will be that it is pure Python
 and ships a GUI. keynest also borrows patterns shamelessly from `chamber`, SOPS, KeePassXC,
 and the developer-docs-as-a-feature approach of Infisical / Doppler / 1Password.
+
+## Python 3.15 wheel verification — 2026-10-04
+
+Windows Python 3.15.0rc3 passes all 300 tests with stable wheel dependencies and with prereleases allowed (none selected); Python 3.14 also passes 300. Clipboard copying now realizes the native window first to avoid a Tk 9.0.4 hidden-window access violation seen on both interpreters. The crash reproduction and controls are saved in [the human-review draft](docs/python315_clipboard.md); no upstream report has been filed. Full dev tooling remains blocked by separate PyYAML requirements, so this is core/test-toolchain verification.

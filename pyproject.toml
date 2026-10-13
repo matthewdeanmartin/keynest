@@ -6,14 +6,13 @@ readme = "README.md"
 authors = [{ name = "Matthew Martin", email = "matthewdeanmartin@gmail.com" }]
 keywords = ["secrets", "keyring", "aws", "secrets-manager", "credentials", "vault", "developer-tools", "cli", "gui", "tkinter"]
 license = "MIT"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -23,7 +22,7 @@ classifiers = [
 dependencies = [
     "keyring>=24.0.0",
     "boto3>=1.34.0",
-    "tomli>=2.0.0; python_version < '3.11'",
+    "do_i_need_to_upgrade>=0.0.1",
 ]
 
 [project.urls]
@@ -55,16 +54,17 @@ include = ["/README.md", "LICENSE", "/keynest", "/tests"]
 
 [dependency-groups]
 dev = [
-    "keepachangelog-manager-fork[all]>=6.5.0; python_version < '3.15'",
-    "bandit>=1.9.4; python_version >= '3.10'",
-    "black>=26.0.0; python_version >= '3.10'",
+    "keepachangelog-manager-fork[fast]>=6.8.0; python_version < '3.15'",
+    "keepachangelog-manager-fork[stdlib]>=6.8.0; python_version >= '3.15'",
+    "bandit>=1.9.4",
+    "black>=26.0.0",
     "isort>=6.0.0",
     "jiggle-version>=2.1.0",
     "codespell>=2.4.1",
-    "mdformat>=1.0.0; python_version >= '3.10'",
-    "metametameta>=0.1.5",
+    "mdformat>=1.0.0",
+    "metametameta>=0.1.14",
     "mypy>=1.18.0",
-    "pylint[spelling]>=4.0.0; python_version >= '3.10'",
+    "pylint[spelling]>=4.0.0",
     "pytest>=8.4.0",
     "pytest-cov>=6.0.0",
     "pytest-xdist>=3.5.0",
@@ -85,22 +85,22 @@ dev = [
     "interrogate>=1.5.0",
     "linkcheckmd>=1.4.0",
     "pyenchant>=3.2.2",
-    "mkdocs>=1.6.0",
+    "mkdocs>=1.6.0,<2",
     "mkdocstrings[python]>=0.26.0",
-    "git2md>=0.1.0; python_version >= '3.10'",
+    "git2md>=0.1.0",
     "pyclean>=3.0.0",
     # dead code analysis (advisory)
     "vulture>=2.11",
-    "deadcode>=2.4.0; python_version >= '3.10'",
+    "deadcode>=2.4.0",
     # API surface / doc checks
     "griffe>=1.0.0",
-    "pydoclint>=0.8.0; python_version >= '3.10'",
+    "pydoclint>=0.8.0",
     "pydoctest==0.2.1",
     # advisory / exploratory tools (standalone make targets, not quality gates)
-    "refurb>=2.0.0; python_version >= '3.10'",
+    "refurb>=2.0.0",
     "crosshair-tool>=0.0.80",
     "deptry>=0.20.0",
-    "import-linter>=2.0; python_version < '3.15'",
+    "import-linter>=2.0",
 ]
 
 [tool.uv]
@@ -191,7 +191,7 @@ warn_return_any = false
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = [
@@ -203,7 +203,7 @@ select = [
     "RUF", # ruff-specific
     "W",   # pycodestyle warnings
 ]
-ignore = [
+ignore = ["RUF100", 
     "E501",   # line too long (black handles this)
 ]
 

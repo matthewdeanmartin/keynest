@@ -28,6 +28,8 @@ def window(mem_keyring, devsecrets_home, monkeypatch):
     from keynest.ui import main_window as mw
 
     monkeypatch.setattr("keynest.services.repo_context.detect", lambda: None)
+    # Keep the status bar deterministic regardless of the machine's update cache.
+    monkeypatch.setattr("keynest.ui.main_window.cached_notice", lambda: "")
     try:
         win = mw.MainWindow()
     except tk.TclError as exc:  # pragma: no cover - headless without display
@@ -60,6 +62,7 @@ def repo_window(mem_keyring, devsecrets_home, monkeypatch, tmp_path):
         source="remote",
     )
     monkeypatch.setattr("keynest.services.repo_context.detect", lambda: ctx)
+    monkeypatch.setattr("keynest.ui.main_window.cached_notice", lambda: "")
     try:
         win = mw.MainWindow()
     except tk.TclError as exc:  # pragma: no cover - headless without display
@@ -305,6 +308,106 @@ def test_generate_code_opens_viewer(window, monkeypatch):
     _load_current(window, DATABASE_URL="x")
     window._generate_code()
     assert opened["n"] > 0
+
+
+# -- update checking ----------------------------------------------------------- #
+
+
+def test_startup_update_notice_lands_in_status_bar(mem_keyring, devsecrets_home, monkeypatch):
+    import tkinter as tk
+
+    from keynest.ui import main_window as mw
+
+    monkeypatch.setattr("keynest.services.repo_context.detect", lambda: None)
+    monkeypatch.setattr(
+        "keynest.ui.main_window.cached_notice",
+        lambda: "[update] keynest 0.0.1 -> 0.0.2 is available\nsecond line",
+    )
+    try:
+        win = mw.MainWindow()
+    except tk.TclError as exc:  # pragma: no cover - headless without display
+        pytest.skip(f"no Tk display available: {exc}")
+    try:
+        win.withdraw()
+        assert "0.0.2" in win._status.cget("text")
+        assert "second line" not in win._status.cget("text")  # first line only
+    finally:
+        win.destroy()
+
+
+def _pump_until(window, condition, timeout=5.0):
+    """Drive the Tk event loop until ``condition()`` or timeout."""
+    import time
+
+    deadline = time.time() + timeout
+    while not condition() and time.time() < deadline:
+        window.update()
+        time.sleep(0.02)
+
+
+def test_check_updates_shows_notice_dialog(window, monkeypatch):
+    import keynest.ui.main_window as mw
+
+    captured: dict[str, str] = {}
+    monkeypatch.setattr(mw, "TextDialog", lambda parent, title, body, **kw: captured.update(body=body))
+    monkeypatch.setattr("keynest.ui.main_window.fresh_notice", lambda: "[update] keynest 9.9.9 is available")
+    window._check_updates()
+    _pump_until(window, lambda: "body" in captured)
+    assert "9.9.9" in captured["body"]
+    assert "9.9.9" in window._status.cget("text")
+
+
+def test_check_updates_up_to_date_dialog(window, monkeypatch):
+    import keynest.ui.main_window as mw
+
+    captured: dict[str, str] = {}
+    monkeypatch.setattr(mw, "TextDialog", lambda parent, title, body, **kw: captured.update(body=body))
+    monkeypatch.setattr("keynest.ui.main_window.fresh_notice", lambda: "")
+    window._check_updates()
+    _pump_until(window, lambda: "body" in captured)
+    assert "up to date" in captured["body"]
+
+
+def test_check_updates_failure_is_reported_not_raised(window, monkeypatch):
+    import keynest.ui.main_window as mw
+
+    captured: dict[str, str] = {}
+    monkeypatch.setattr(mw, "TextDialog", lambda parent, title, body, **kw: captured.update(body=body))
+
+    def boom() -> str:
+        raise RuntimeError("pypi unreachable")
+
+    monkeypatch.setattr("keynest.ui.main_window.fresh_notice", boom)
+    window._check_updates()
+    _pump_until(window, lambda: "body" in captured)
+    assert "pypi unreachable" in captured["body"]
+
+
+# -- Credential Manager launcher ---------------------------------------------- #
+
+
+def test_open_credential_manager_does_not_block_the_ui(window, monkeypatch):
+    """The launcher must fire-and-forget: rundll32 stays alive until the
+    Credential Manager dialog is closed, so waiting on it freezes the mainloop."""
+    launched: list[list[str]] = []
+    monkeypatch.setattr("keynest.ui.main_window.subprocess.Popen", lambda argv, **kw: launched.append(argv))
+    monkeypatch.setattr(
+        "keynest.ui.main_window.subprocess.run",
+        lambda *a, **k: pytest.fail("subprocess.run waits for rundll32 to exit and freezes the Tk mainloop"),
+    )
+    window._open_credential_manager()
+    assert launched and launched[0][0].lower().endswith("\\rundll32.exe")
+
+
+def test_open_credential_manager_reports_launch_failure(window, monkeypatch):
+    def boom(*args, **kwargs):
+        raise OSError("no rundll32")
+
+    monkeypatch.setattr("keynest.ui.main_window.subprocess.Popen", boom)
+    captured: dict[str, str] = {}
+    monkeypatch.setattr("keynest.ui.main_window.messagebox.showerror", lambda title, msg: captured.update(msg=msg))
+    window._open_credential_manager()
+    assert "no rundll32" in captured["msg"]
 
 
 # -- raw (non-keynest) OS credentials ---------------------------------------- #
