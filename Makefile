@@ -211,7 +211,8 @@ bandit:
 #   GHSA-p4gq-832x-fm9v: nltk path traversal in nltk.data.load(); pulled in transitively
 #     via pydoclint->textstat (dev-only, not a runtime dependency). No fixed release.
 #   PYSEC-2026-597: OSV/PyPI alias for the same unfixed nltk 3.9.4 issue.
-AUDIT_IGNORE = GHSA-p4gq-832x-fm9v PYSEC-2026-597
+#   PYSEC-2026-3740: nltk model-artifact APIs bypass pathsec; no fixed release yet, same dev-only path.
+AUDIT_IGNORE = GHSA-p4gq-832x-fm9v PYSEC-2026-597 PYSEC-2026-3740
 
 audit:
 	@echo "=== uv audit ==="
