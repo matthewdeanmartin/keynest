@@ -5,6 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Changed
+- Requires Python 3.11 or newer; Python 3.10 is no longer supported.
+
+
+## [0.1.0] - 2026-07-01
 ### Added
 - Wired `do_i_need_to_upgrade` into normal `keynest` execution so update notices can appear during GUI startup and shutdown without a separate updater CLI
 - Added integrated `keynest upgrade` and `keynest check-updates` subcommands; `check-updates --help` documents the scripting exit codes (0/10/1) and the `DO_I_NEED_TO_UPGRADE=off` kill switch
@@ -17,9 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Diagnostics report the detected repo, its default folder, and the (scrubbed) remote URL
 - Optional committed `.keynest` marker file that maps a repo to an explicit folder (and optional `default_map`); it is secret-free by construction — unknown keys are rejected on read and cannot be written — and overrides inferred identity. New `keynest init-repo` command creates it
 - `[tool.keynest]` section in `pyproject.toml` is now read as a higher-priority config source than `.keynest`; same secret-free schema applies
-
-### Changed
-- Requires Python 3.11 or newer; Python 3.10 is no longer supported.
 
 ## [0.0.1] - 2026-06-30
 ### Added
